@@ -1223,7 +1223,70 @@ local noReloadToggle = ExploitsTab:Toggle({
     end
 })
 currentConfig:Register("InfiniteAmmo", noReloadToggle)
+ExploitsTab:Divider()
 
+local autoPingToggle = ExploitsTab:Toggle({
+    Title = "Auto Ping Enemies",
+    Desc = "Pings the enemy under your crosshair every frame (ignores walls)",
+    Icon = "map-pin",
+    Flag = "AutoPing",
+    Callback = function(state)
+        getgenv().AutoPingEnabled = state
+        if state then
+            if Connections.AutoPing then Connections.AutoPing:Disconnect() end
+            local pingCount = 0
+            local lastPingTime = 0
+            Connections.AutoPing = RunService.Heartbeat:Connect(function()
+                if not getgenv().AutoPingEnabled then return end
+                local now = os.clock()
+                -- Reset cooldown after 1 second if we've used 3 pings
+                if pingCount >= 3 and now - lastPingTime > 1 then
+                    pingCount = 0
+                end
+                if pingCount >= 3 then return end  -- still on cooldown
+
+                local localPlayer = Players.LocalPlayer
+                local camera = workspace.CurrentCamera
+                local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+                local closestDist = 300 -- max distance in pixels from crosshair
+                local closestEnemy = nil
+                local closestPosition = nil
+
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr == localPlayer or not plr.Character then continue end
+                    if localPlayer.Team and plr.Team == localPlayer.Team then continue end
+                    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                    if not hrp then continue end
+                    local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+                    if onScreen then
+                        local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            closestEnemy = plr
+                            closestPosition = hrp.Position
+                        end
+                    end
+                end
+
+                if closestEnemy then
+                    local pingRemote = ReplicatedStorage:FindFirstChild("GameEvents")
+                    if pingRemote then pingRemote = pingRemote:FindFirstChild("PingLocation") end
+                    if pingRemote then
+                        pingRemote:FireServer(closestPosition, "Part", Vector3.new(0, 1, 0))
+                        pingCount = pingCount + 1
+                        lastPingTime = now
+                    end
+                end
+            end)
+        else
+            if Connections.AutoPing then
+                Connections.AutoPing:Disconnect()
+                Connections.AutoPing = nil
+            end
+        end
+    end
+})
+currentConfig:Register("AutoPing", autoPingToggle)
 ExploitsTab:Divider()
 
 ExploitsTab:Button({
