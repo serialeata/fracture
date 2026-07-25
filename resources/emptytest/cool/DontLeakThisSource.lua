@@ -1087,82 +1087,6 @@ expSec6:Button({
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
 })
 
--- ==================== JUMBSCARE (under Exploits) ====================
-local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
-
-local jumpscareDelay = 0.1
-
-expSec7:Button({
-    Title = "Jumpscare",
-    Desc = "Teleports you in front of the enemy you're looking at for a set delay, then back",
-    Callback = function()
-        local function getEnemyUnderCrosshair()
-            local lp = LocalPlayer
-            local cam = Camera
-            local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
-            local closest = nil
-            local closestDist = 150
-
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr == lp then continue end
-                if lp.Team and plr.Team and plr.Team == lp.Team then continue end
-                local char = plr.Character
-                if not char then continue end
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if not hrp then continue end
-                local pos, onScreen = cam:WorldToViewportPoint(hrp.Position)
-                if not onScreen then continue end
-                local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
-                if dist < closestDist then
-                    closestDist = dist
-                    closest = { Player = plr, Character = char, HRP = hrp, Head = char:FindFirstChild("Head") }
-                end
-            end
-            return closest
-        end
-
-        local target = getEnemyUnderCrosshair()
-        if not target then
-            print("No enemy under crosshair")
-            return
-        end
-
-        local lpChar = LocalPlayer.Character
-        if not lpChar then return end
-        local lRoot = lpChar:FindFirstChild("HumanoidRootPart")
-        if not lRoot then return end
-
-        local originalCF = lRoot.CFrame
-        local originalCamCF = Camera.CFrame
-
-        local enemyRoot = target.HRP
-        local enemyHead = target.Head or enemyRoot
-        local enemyCF = enemyRoot.CFrame
-        local frontOffset = enemyCF.LookVector * 2.5
-        local newPos = enemyCF.Position + frontOffset
-        newPos = Vector3.new(newPos.X, enemyCF.Position.Y + 1, newPos.Z)
-
-        lRoot.CFrame = CFrame.new(newPos, enemyHead.Position)
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemyHead.Position)
-
-        task.wait(jumpscareDelay)
-
-        lRoot.CFrame = originalCF
-        Camera.CFrame = originalCamCF
-    end
-})
-
-local delaySlider = expSec7:Slider({
-    Title = "Jumpscare Delay",
-    Desc = "Time before teleporting back (0.0 – 2.0 seconds, step 0.1)",
-    Step = 0.1,
-    Flag = "JumpscareDelay",
-    Value = { Min = 0, Max = 2, Default = 0.1 },
-    Callback = function(value)
-        jumpscareDelay = value
-    end
-})
-currentConfig:Register("JumpscareDelay", delaySlider)
 
 -- //////////////////////// VISUALS ////////////////////////
 local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
@@ -1325,6 +1249,87 @@ utilSec2:Button({
         if hum then hum.Health = 0 end
     end
 })
+
+
+-- ==================== JUMBSCARE (under Exploits) ====================
+local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
+
+local jumpscareDelay = 0.1
+
+expSec7:Button({
+    Title = "Jumpscare",
+    Desc = "Teleports you in front of the enemy you're looking at for a set delay, then back",
+    Callback = function()
+        local function getEnemyUnderCrosshair()
+            local lp = LocalPlayer
+            local cam = Camera
+            local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+            local closest = nil
+            local closestDist = 150
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr == lp then continue end
+                if lp.Team and plr.Team and plr.Team == lp.Team then continue end
+                local char = plr.Character
+                if not char then continue end
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if not hrp then continue end
+                local pos, onScreen = cam:WorldToViewportPoint(hrp.Position)
+                if not onScreen then continue end
+                local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closest = { Player = plr, Character = char, HRP = hrp, Head = char:FindFirstChild("Head") }
+                end
+            end
+            return closest
+        end
+
+        local target = getEnemyUnderCrosshair()
+        if not target then
+            print("No enemy under crosshair")
+            return
+        end
+
+        local lpChar = LocalPlayer.Character
+        if not lpChar then return end
+        local lRoot = lpChar:FindFirstChild("HumanoidRootPart")
+        if not lRoot then return end
+
+        local originalCF = lRoot.CFrame
+        local originalCamCF = Camera.CFrame
+
+        local enemyRoot = target.HRP
+        local enemyHead = target.Head or enemyRoot
+        local enemyCF = enemyRoot.CFrame
+        local frontOffset = enemyCF.LookVector * 2.5
+        local newPos = enemyCF.Position + frontOffset
+        newPos = Vector3.new(newPos.X, enemyCF.Position.Y + 1, newPos.Z)
+
+        lRoot.CFrame = CFrame.new(newPos, enemyHead.Position)
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemyHead.Position)
+
+        task.wait(jumpscareDelay)
+
+        lRoot.CFrame = originalCF
+        Camera.CFrame = originalCamCF
+    end
+})
+
+local delaySlider = expSec7:Slider({
+    Title = "Jumpscare Delay",
+    Desc = "Time before teleporting back (0.0 – 2.0 seconds, step 0.1)",
+    Step = 0.1,
+    Flag = "JumpscareDelay",
+    Value = { Min = 0, Max = 2, Default = 0.1 },
+    Callback = function(value)
+        jumpscareDelay = value
+    end
+})
+currentConfig:Register("JumpscareDelay", delaySlider)
+
+
+
 
 -- //////////////////////// SETTINGS ////////////////////////
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
