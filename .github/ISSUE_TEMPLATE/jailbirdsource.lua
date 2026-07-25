@@ -1225,69 +1225,107 @@ local noReloadToggle = ExploitsTab:Toggle({
 currentConfig:Register("InfiniteAmmo", noReloadToggle)
 ExploitsTab:Divider()
 
+ExploitsTab:Divider()
+
+local autoPingEnabled = false
+local nearest3PingEnabled = false
+local lastPingTime = 0
+
+local function firePing(targetPosition)
+    local pingRemote = ReplicatedStorage:FindFirstChild("GameEvents")
+    if pingRemote then pingRemote = pingRemote:FindFirstChild("PingLocation") end
+    if pingRemote then
+        pingRemote:FireServer(targetPosition, "Part", Vector3.new(0, 1, 0))
+    end
+end
+
+local function updateAutoPing()
+    if Connections.AutoPing then
+        Connections.AutoPing:Disconnect()
+        Connections.AutoPing = nil
+    end
+
+    if not autoPingEnabled then return end
+
+    Connections.AutoPing = RunService.Heartbeat:Connect(function()
+        local localPlayer = Players.LocalPlayer
+        if not localPlayer.Character then return end
+
+        if nearest3PingEnabled then
+            -- Nearest 3 enemies, fire as fast as possible (remote limits apply)
+            local enemies = {}
+            local myTeam = localPlayer.Team
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= localPlayer and plr.Character then
+                    if myTeam and plr.Team == myTeam then continue end
+                    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local dist = (hrp.Position - localPlayer.Character.Head.Position).Magnitude
+                        table.insert(enemies, {dist = dist, pos = hrp.Position})
+                    end
+                end
+            end
+            table.sort(enemies, function(a, b) return a.dist < b.dist end)
+            for i = 1, math.min(3, #enemies) do
+                firePing(enemies[i].pos)
+            end
+        else
+            -- Crosshair ping every 0.333 seconds
+            local now = os.clock()
+            if now - lastPingTime < 0.333 then return end
+            lastPingTime = now
+
+            local camera = workspace.CurrentCamera
+            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+            local closestDist = 300
+            local closestPos = nil
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr == localPlayer or not plr.Character then continue end
+                if localPlayer.Team and plr.Team == localPlayer.Team then continue end
+                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                if not hrp then continue end
+                local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        closestPos = hrp.Position
+                    end
+                end
+            end
+            if closestPos then
+                firePing(closestPos)
+            end
+        end
+    end)
+end
+
 local autoPingToggle = ExploitsTab:Toggle({
-    Title = "Auto Ping Enemies",
-    Desc = "Pings the enemy under your crosshair every frame (ignores walls)",
+    Title = "Auto Ping (Crosshair)",
+    Desc = "Pings the enemy under your crosshair every 0.333s",
     Icon = "map-pin",
     Flag = "AutoPing",
     Callback = function(state)
-        getgenv().AutoPingEnabled = state
-        if state then
-            if Connections.AutoPing then Connections.AutoPing:Disconnect() end
-            local pingCount = 0
-            local lastPingTime = 0
-            Connections.AutoPing = RunService.Heartbeat:Connect(function()
-                if not getgenv().AutoPingEnabled then return end
-                local now = os.clock()
-                -- Reset cooldown after 1 second if we've used 3 pings
-                if pingCount >= 3 and now - lastPingTime > 1 then
-                    pingCount = 0
-                end
-                if pingCount >= 3 then return end  -- still on cooldown
-
-                local localPlayer = Players.LocalPlayer
-                local camera = workspace.CurrentCamera
-                local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-                local closestDist = 300 -- max distance in pixels from crosshair
-                local closestEnemy = nil
-                local closestPosition = nil
-
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr == localPlayer or not plr.Character then continue end
-                    if localPlayer.Team and plr.Team == localPlayer.Team then continue end
-                    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                    if not hrp then continue end
-                    local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
-                    if onScreen then
-                        local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
-                        if dist < closestDist then
-                            closestDist = dist
-                            closestEnemy = plr
-                            closestPosition = hrp.Position
-                        end
-                    end
-                end
-
-                if closestEnemy then
-                    local pingRemote = ReplicatedStorage:FindFirstChild("GameEvents")
-                    if pingRemote then pingRemote = pingRemote:FindFirstChild("PingLocation") end
-                    if pingRemote then
-                        pingRemote:FireServer(closestPosition, "Part", Vector3.new(0, 1, 0))
-                        pingCount = pingCount + 1
-                        lastPingTime = now
-                    end
-                end
-            end)
-        else
-            if Connections.AutoPing then
-                Connections.AutoPing:Disconnect()
-                Connections.AutoPing = nil
-            end
-        end
+        autoPingEnabled = state
+        updateAutoPing()
     end
 })
 currentConfig:Register("AutoPing", autoPingToggle)
-ExploitsTab:Divider()
+
+local nearest3PingToggle = ExploitsTab:Toggle({
+    Title = "Nearest 3 Ping",
+    Desc = "Pings the 3 nearest enemies rapidly (requires Auto Ping on, removes delay)",
+    Icon = "target",
+    Flag = "Nearest3Ping",
+    Callback = function(state)
+        nearest3PingEnabled = state
+        if autoPingEnabled then
+            updateAutoPing()
+        end
+    end
+})
+currentConfig:Register("Nearest3Ping", nearest3PingToggle)
 
 ExploitsTab:Button({
     Title = "Anti Kick",
