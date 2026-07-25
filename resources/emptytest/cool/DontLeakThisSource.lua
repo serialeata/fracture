@@ -1087,14 +1087,12 @@ expSec6:Button({
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
 })
 
-
--- ==================== RANDOM BULLSHIT TAB ====================
-local RandomTab = Window:Tab({ Title = "Random Bullshit", Icon = "zap" })
-local randSec1 = RandomTab:Section({ Title = "Jumpscare" })
+-- ==================== JUMBSCARE (under Exploits) ====================
+local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
 
 local jumpscareDelay = 0.1
 
-randSec1:Button({
+expSec7:Button({
     Title = "Jumpscare",
     Desc = "Teleports you in front of the enemy you're looking at for a set delay, then back",
     Callback = function()
@@ -1154,7 +1152,7 @@ randSec1:Button({
     end
 })
 
-local delaySlider = randSec1:Slider({
+local delaySlider = expSec7:Slider({
     Title = "Jumpscare Delay",
     Desc = "Time before teleporting back (0.0 – 2.0 seconds, step 0.1)",
     Step = 0.1,
@@ -1165,8 +1163,6 @@ local delaySlider = randSec1:Slider({
     end
 })
 currentConfig:Register("JumpscareDelay", delaySlider)
-
-
 
 -- //////////////////////// VISUALS ////////////////////////
 local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
