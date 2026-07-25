@@ -1086,7 +1086,69 @@ expSec6:Button({
     Title = "Gun Spoofer", Desc = "Equip any tool from workspace",
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
 })
+-- ==================== RANDOM BULLSHIT TAB ====================
+local RandomTab = Window:Tab({ Title = "Random Bullshit", Icon = "zap" })
 
+RandomTab:Button({
+    Title = "Jumpscare",
+    Desc = "Teleports you in front of the enemy you're looking at for 0.1 seconds, then back",
+    Callback = function()
+        local function getEnemyUnderCrosshair()
+            local lp = LocalPlayer
+            local cam = Camera
+            local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+            local closest = nil
+            local closestDist = 150 -- max pixel distance to crosshair
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr == lp then continue end
+                if lp.Team and plr.Team and plr.Team == lp.Team then continue end
+                local char = plr.Character
+                if not char then continue end
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if not hrp then continue end
+                local pos, onScreen = cam:WorldToViewportPoint(hrp.Position)
+                if not onScreen then continue end
+                local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closest = { Player = plr, Character = char, HRP = hrp }
+                end
+            end
+            return closest
+        end
+
+        local target = getEnemyUnderCrosshair()
+        if not target then
+            print("No enemy under crosshair")
+            return
+        end
+
+        local lpChar = LocalPlayer.Character
+        if not lpChar then return end
+        local lRoot = lpChar:FindFirstChild("HumanoidRootPart")
+        if not lRoot then return end
+
+        -- Store original position
+        local originalCF = lRoot.CFrame
+
+        -- Get enemy position and facing direction
+        local enemyRoot = target.HRP
+        local enemyCF = enemyRoot.CFrame
+        -- Move player to a position 2 studs in front of the enemy (along enemy's look direction)
+        local frontOffset = enemyCF.LookVector * 2.5  -- adjust distance as needed
+        local newPos = enemyCF.Position + frontOffset
+        -- Keep same Y as enemy (or slightly above)
+        newPos = Vector3.new(newPos.X, enemyCF.Position.Y + 1, newPos.Z)
+
+        -- Teleport
+        lRoot.CFrame = CFrame.new(newPos, enemyCF.Position)
+
+        -- Wait 0.1 seconds then teleport back
+        task.wait(0.1)
+        lRoot.CFrame = originalCF
+    end
+})
 -- //////////////////////// VISUALS ////////////////////////
 local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
 local visSec1 = VisualsTab:Section({ Title = "ESP" })
