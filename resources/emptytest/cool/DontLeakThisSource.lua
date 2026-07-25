@@ -1224,7 +1224,94 @@ local noReloadToggle = ExploitsTab:Toggle({
 })
 currentConfig:Register("InfiniteAmmo", noReloadToggle)
 ExploitsTab:Divider()
+local instaBarricadeConnection = nil
+local instaBarricadeEnabled = false
+local originalHoldDurations = {}
 
+local function setHoldDuration(prompt)
+    pcall(function()
+        if prompt:IsA("ProximityPrompt") then
+            if instaBarricadeEnabled then
+                originalHoldDurations[prompt] = prompt.HoldDuration
+                prompt.HoldDuration = 0
+            else
+                if originalHoldDurations[prompt] then
+                    prompt.HoldDuration = originalHoldDurations[prompt]
+                    originalHoldDurations[prompt] = nil
+                end
+            end
+        end
+    end)
+end
+
+local function applyInstaBarricade()
+    if instaBarricadeEnabled then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            setHoldDuration(obj)
+        end
+        instaBarricadeConnection = workspace.DescendantAdded:Connect(function(obj)
+            setHoldDuration(obj)
+        end)
+    else
+        if instaBarricadeConnection then
+            instaBarricadeConnection:Disconnect()
+            instaBarricadeConnection = nil
+        end
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            setHoldDuration(obj)
+        end
+        table.clear(originalHoldDurations)
+    end
+end
+
+local autoBarricadeConnection = nil
+local autoBarricadeEnabled = false
+
+local function startAutoBarricade()
+    if autoBarricadeConnection then autoBarricadeConnection:Disconnect() end
+    autoBarricadeConnection = RunService.Heartbeat:Connect(function()
+        if not autoBarricadeEnabled then return end
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
+                pcall(function()
+                    obj:InputHoldBegin()
+                    obj:InputHoldEnd()
+                end)
+            end
+        end
+    end)
+end
+
+local instaBarricadeToggle = ExploitsTab:Toggle({
+    Title = "Insta Barricade",
+    Desc = "Sets all proximity prompt hold durations to 0",
+    Icon = "zap",
+    Flag = "InstaBarricade",
+    Callback = function(state)
+        instaBarricadeEnabled = state
+        applyInstaBarricade()
+    end
+})
+currentConfig:Register("InstaBarricade", instaBarricadeToggle)
+
+local autoBarricadeToggle = ExploitsTab:Toggle({
+    Title = "Auto Barricade",
+    Desc = "Automatically builds barricades as soon as they appear",
+    Icon = "refresh-cw",
+    Flag = "AutoBarricade",
+    Callback = function(state)
+        autoBarricadeEnabled = state
+        if state then
+            startAutoBarricade()
+        else
+            if autoBarricadeConnection then
+                autoBarricadeConnection:Disconnect()
+                autoBarricadeConnection = nil
+            end
+        end
+    end
+})
+currentConfig:Register("AutoBarricade", autoBarricadeToggle)
 ExploitsTab:Divider()
 
 local autoPingEnabled = false
