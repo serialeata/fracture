@@ -1086,11 +1086,13 @@ expSec6:Button({
     Title = "Gun Spoofer", Desc = "Equip any tool from workspace",
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
 })
+
+
 -- ==================== RANDOM BULLSHIT TAB ====================
 local RandomTab = Window:Tab({ Title = "Random Bullshit", Icon = "zap" })
 local randSec1 = RandomTab:Section({ Title = "Jumpscare" })
 
-local jumpscareDelay = 0.1  -- default
+local jumpscareDelay = 0.1
 
 randSec1:Button({
     Title = "Jumpscare",
@@ -1132,11 +1134,9 @@ randSec1:Button({
         local lRoot = lpChar:FindFirstChild("HumanoidRootPart")
         if not lRoot then return end
 
-        -- Save original positions and camera
         local originalCF = lRoot.CFrame
         local originalCamCF = Camera.CFrame
 
-        -- Get enemy position and head
         local enemyRoot = target.HRP
         local enemyHead = target.Head or enemyRoot
         local enemyCF = enemyRoot.CFrame
@@ -1144,33 +1144,16 @@ randSec1:Button({
         local newPos = enemyCF.Position + frontOffset
         newPos = Vector3.new(newPos.X, enemyCF.Position.Y + 1, newPos.Z)
 
-        -- Teleport player and face enemy's head
         lRoot.CFrame = CFrame.new(newPos, enemyHead.Position)
-        -- Also force camera to look at enemy head instantly
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemyHead.Position)
 
-        -- Wait for the set delay
         task.wait(jumpscareDelay)
 
-        -- Restore player and camera
         lRoot.CFrame = originalCF
         Camera.CFrame = originalCamCF
     end
 })
 
-randSec1:Slider({
-    Title = "Jumpscare Delay",
-    Desc = "Time before teleporting back (0.0 – 2.0 seconds, step 0.1)",
-    Step = 0.1,
-    Flag = "JumpscareDelay",
-    Value = { Min = 0, Max = 2, Default = 0.1 },
-    Callback = function(value)
-        jumpscareDelay = value
-    end
-})
--- Register with config manager (optional)
-currentConfig:Register("JumpscareDelay", randSec1:Slider(...)) -- but we need to store the slider reference; simpler: just register after creation.
--- Actually we can get the slider object by assigning it to a variable:
 local delaySlider = randSec1:Slider({
     Title = "Jumpscare Delay",
     Desc = "Time before teleporting back (0.0 – 2.0 seconds, step 0.1)",
@@ -1182,6 +1165,9 @@ local delaySlider = randSec1:Slider({
     end
 })
 currentConfig:Register("JumpscareDelay", delaySlider)
+
+
+
 -- //////////////////////// VISUALS ////////////////////////
 local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
 local visSec1 = VisualsTab:Section({ Title = "ESP" })
