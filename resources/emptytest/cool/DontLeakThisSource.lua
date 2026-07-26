@@ -814,7 +814,7 @@ local autoKillV2Cooldown = 0
 local function AutoKillV2Loop()
     if not autoKillV2Running then return end
     local now = tick()
-    if now - autoKillV2Cooldown < 0.05 then return end
+    if now - autoKillV2Cooldown < 0.001 then return end
     local localChar = LocalPlayer.Character
     if not localChar or not isAlive(localChar) then return end
     local remote = ReplicatedStorage:FindFirstChild("GameEvents")
