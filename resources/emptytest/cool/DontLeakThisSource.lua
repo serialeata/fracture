@@ -1,6 +1,5 @@
 -- ============================================================
--- BR Hub | JailBird Edition – v2.7.2
--- Rewritten with WindUI Sections & Groups
+-- BR Hub | JailBird Edition – v2.9.3 (Full Features, No Paragraph)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -13,7 +12,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- ============================================================
--- Global Settings (getgenv)
+-- Global Settings
 -- ============================================================
 getgenv().SpinBotSettings = { Enabled = false, Mode = "Spin" }
 getgenv().AimbotSettings = {
@@ -25,7 +24,8 @@ getgenv().AimbotSettings = {
     ShowFOV = false,
     VisibleOnly = false,
     RainbowFOV = false,
-    FOVTransparency = 0.8
+    FOVTransparency = 0.8,
+    FOVColor = Color3.fromRGB(255, 0, 100)
 }
 getgenv().EspSettings = {
     Boxes = false,
@@ -35,11 +35,12 @@ getgenv().EspSettings = {
     Health = false,
     Tool = false,
     Rainbow = false,
-    LineThickness = 2  -- new
+    LineThickness = 2,
+    EnemyColor = Color3.fromRGB(255, 50, 50),
+    TeammateColor = Color3.fromRGB(50, 150, 255)
 }
 getgenv().HitboxSettings = { Enabled = false, Size = 4, WallCheck = false }
 getgenv().WalkSpeedValue = 16
-getgenv().JumpPowerValue = 50
 getgenv().TPWalkSpeed = 0
 getgenv().CameraFOVEnabled = false
 getgenv().CameraFOVValue = 70
@@ -66,15 +67,7 @@ local customThemes = {
     { Name = "Forest", Accent = Color3.fromHex("#1a2e1a"), Background = Color3.fromHex("#0d1a0d"), Outline = Color3.fromHex("#4caf50"), Text = Color3.fromHex("#e0ffe0"), Placeholder = Color3.fromHex("#5e8c5e"), Button = Color3.fromHex("#2b472b"), Icon = Color3.fromHex("#81c784") },
 }
 for _, theme in ipairs(customThemes) do WindUI:AddTheme(theme) end
-
-local savedTheme = nil
-pcall(function()
-    if isfile and isfolder and makefolder and readfile then
-        if not isfolder("BR_Hub") then makefolder("BR_Hub") end
-        if isfile("BR_Hub/theme.txt") then savedTheme = readfile("BR_Hub/theme.txt") end
-    end
-end)
-WindUI:SetTheme(savedTheme or "Ocean")
+WindUI:SetTheme("Ocean")
 
 local Window = WindUI:CreateWindow({
     Title = "BR Hub | JailBird",
@@ -96,6 +89,26 @@ Window:EditOpenButton({
 
 local ConfigManager = Window.ConfigManager
 local currentConfig = ConfigManager:CreateConfig("DefaultConfig")
+
+-- ============================================================
+-- Auto-Load Theme from Config
+-- ============================================================
+local function GetSavedTheme()
+    local success, saved = pcall(function()
+        return currentConfig:Get("SavedTheme")
+    end)
+    if success and saved and saved ~= "" then
+        return saved
+    end
+    return nil
+end
+
+local savedTheme = GetSavedTheme()
+if savedTheme then
+    pcall(function() WindUI:SetTheme(savedTheme) end)
+else
+    WindUI:SetTheme("Ocean")
+end
 
 -- ============================================================
 -- Common Functions
@@ -156,7 +169,7 @@ fovFrame.BorderSizePixel = 0
 fovFrame.Parent = fovGui
 
 local fovStroke = Instance.new("UIStroke")
-fovStroke.Color = Color3.fromRGB(255, 0, 100)
+fovStroke.Color = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255, 0, 100)
 fovStroke.Thickness = 1.5
 fovStroke.Transparency = 0.8
 fovStroke.Parent = fovFrame
@@ -220,7 +233,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ============================================================
--- ESP System (Frame-based lines & text)
+-- ESP System
 -- ============================================================
 local espGui = Instance.new("ScreenGui")
 espGui.Name = "ESP_Gui"
@@ -239,6 +252,7 @@ end
 
 local function createLine2D(from, to, color)
     local thickness = getgenv().EspSettings.LineThickness or 2
+    if thickness < 1 then thickness = 1 end
     local length = (to - from).Magnitude
     if length < 1 then return nil end
     local angle = math.atan2(to.Y - from.Y, to.X - from.X)
@@ -252,6 +266,30 @@ local function createLine2D(from, to, color)
     frame.Rotation = math.deg(angle)
     frame.Parent = espGui
     return frame
+end
+
+local function drawBoxESP(plr, color)
+    local char = plr.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    local headPos, headOn = Camera:WorldToViewportPoint(head.Position)
+    if not headOn then return end
+    local headScreen = Vector2.new(headPos.X, headPos.Y)
+    local boxWidth = 60
+    local boxHeight = 80
+    local topLeft = Vector2.new(headScreen.X - boxWidth/2, headScreen.Y - boxHeight/2)
+    local topRight = Vector2.new(headScreen.X + boxWidth/2, headScreen.Y - boxHeight/2)
+    local bottomLeft = Vector2.new(headScreen.X - boxWidth/2, headScreen.Y + boxHeight/2)
+    local bottomRight = Vector2.new(headScreen.X + boxWidth/2, headScreen.Y + boxHeight/2)
+    local function drawBoxLine(p1, p2)
+        local line = createLine2D(p1, p2, color)
+        if line then table.insert(espObjects, line) end
+    end
+    drawBoxLine(topLeft, topRight)
+    drawBoxLine(topRight, bottomRight)
+    drawBoxLine(bottomRight, bottomLeft)
+    drawBoxLine(bottomLeft, topLeft)
 end
 
 local function createText(text, position, color, size, center)
@@ -273,7 +311,7 @@ end
 
 local function updateESP()
     local espSettings = getgenv().EspSettings
-    if not (espSettings.Skeleton or espSettings.Tracers or espSettings.Name or espSettings.Health or espSettings.Tool) then
+    if not (espSettings.Boxes or espSettings.Skeleton or espSettings.Tracers or espSettings.Name or espSettings.Health or espSettings.Tool) then
         clearESP()
         return
     end
@@ -305,13 +343,15 @@ local function updateESP()
         local rightLeg = char:FindFirstChild("Right Leg")
         local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-        local teamColor
-        if LocalPlayer.Team and plr.Team and plr.Team == LocalPlayer.Team then
-            teamColor = Color3.fromRGB(50, 150, 255)
-        else
-            teamColor = Color3.fromRGB(255, 50, 50)
+        local enemyColor = espSettings.EnemyColor or Color3.fromRGB(255, 50, 50)
+        local teamColor = espSettings.TeammateColor or Color3.fromRGB(50, 150, 255)
+        local isTeam = LocalPlayer.Team and plr.Team and plr.Team == LocalPlayer.Team
+        local baseColor = isTeam and teamColor or enemyColor
+        local displayColor = espSettings.Rainbow and rainbowColor or baseColor
+
+        if espSettings.Boxes then
+            drawBoxESP(plr, displayColor)
         end
-        local displayColor = espSettings.Rainbow and rainbowColor or teamColor
 
         if espSettings.Skeleton and torso and head and leftArm and rightArm and leftLeg and rightLeg then
             local function worldToScreen(pos)
@@ -393,20 +433,20 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ============================================================
--- TABS
+-- TABS (All features, no Paragraph)
 -- ============================================================
 
 -- //////////////////////// INFO ////////////////////////
 local InfoTab = Window:Tab({ Title = "Info", Icon = "home" })
 InfoTab:Button({
     Title = "Welcome to BR Hub",
-    Desc = "Current Version: v2.7.2",
+    Desc = "Current Version: v2.9.3",
     Callback = function() end
 })
 InfoTab:Divider()
 InfoTab:Button({
     Title = "Changelog",
-    Desc = "No Reload replaces Reload Exploit\nSpin Around requires Auto Teleport\nRemoved Ping Change Speed slider\nLean Spammer\nClassic camera aimbot restored\nAll previous features intact",
+    Desc = "✓ WindUI ConfigManager\n✓ Auto-Theme\n✓ Box ESP (fixed size)\n✓ ESP Color Pickers\n✓ Auto Kill (raycast)\n✓ FOV Colorpicker\n✓ All previous features",
     Callback = function() end
 })
 InfoTab:Divider()
@@ -429,16 +469,7 @@ movSec1:Slider({
     end
 })
 movSec1:Slider({
-    Title = "JumpPower", Desc = "Jump height (max 50, default 50)", Step = 1, Flag = "JumpPower",
-    Value = { Min = 16, Max = 50, Default = 50 },
-    Callback = function(value)
-        getgenv().JumpPowerValue = value
-        local hum = (LocalPlayer.Character or {}):FindFirstChildOfClass("Humanoid")
-        if hum then hum.UseJumpPower = true; hum.JumpPower = value end
-    end
-})
-movSec1:Slider({
-    Title = "TP Walk Speed", Desc = "Multiplier for TP Walk (0-20, default 0)", Step = 1, Flag = "TPWalkSpeed",
+    Title = "TP Walk Speed", Desc = "Multiplier for TP Walk (0-20)", Step = 1, Flag = "TPWalkSpeed",
     Value = { Min = 0, Max = 20, Default = 0 },
     Callback = function(value) getgenv().TPWalkSpeed = value end
 })
@@ -460,7 +491,7 @@ movSec2:Toggle({
     end
 })
 movSec2:Toggle({
-    Title = "Noclip", Desc = "Walk through walls (does not affect character collisions permanently)", Icon = "ghost", Flag = "Noclip",
+    Title = "Noclip", Desc = "Walk through walls", Icon = "ghost", Flag = "Noclip",
     Callback = function(state)
         if state then
             Connections.Noclip = RunService.Stepped:Connect(function()
@@ -477,7 +508,7 @@ movSec2:Toggle({
     end
 })
 movSec2:Toggle({
-    Title = "TP Walk", Desc = "Teleports you forward in the direction you move (speed multiplier above)", Icon = "zap", Flag = "TPWalk",
+    Title = "TP Walk", Desc = "Teleport forward", Icon = "zap", Flag = "TPWalk",
     Callback = function(state)
         if state then
             if Connections.TPWalk then Connections.TPWalk:Disconnect() end
@@ -506,33 +537,33 @@ movSec2:Toggle({
 local AimTab = Window:Tab({ Title = "Aim", Icon = "crosshair" })
 local aimSec1 = AimTab:Section({ Title = "Aimbot Settings" })
 aimSec1:Toggle({
-    Title = "Aimbot (Camera Lock)", Desc = "Locks your camera onto the nearest enemy player", Icon = "target", Flag = "Aimbot",
+    Title = "Aimbot (Camera Lock)", Desc = "Locks camera onto nearest enemy", Icon = "target", Flag = "Aimbot",
     Callback = function(v) getgenv().AimbotSettings.Enabled = v end
 })
 aimSec1:Toggle({
-    Title = "Team Check", Desc = "Ignore teammates when locking", Icon = "users", Flag = "TeamCheck",
+    Title = "Team Check", Desc = "Ignore teammates", Icon = "users", Flag = "TeamCheck",
     Callback = function(v) getgenv().AimbotSettings.TeamCheck = v end
 })
 aimSec1:Toggle({
-    Title = "Visible Only", Desc = "Only lock onto enemies you can see (line-of-sight)", Icon = "eye", Flag = "VisibleOnly",
+    Title = "Visible Only", Desc = "Only lock if visible", Icon = "eye", Flag = "VisibleOnly",
     Callback = function(v) getgenv().AimbotSettings.VisibleOnly = v end
 })
 aimSec1:Slider({
-    Title = "Aimbot Smoothness", Desc = "Lower = faster lock (1 is instant)", Step = 1, Flag = "Smoothness",
+    Title = "Smoothness", Desc = "Lower = faster (1=instant)", Step = 1, Flag = "Smoothness",
     Value = { Min = 1, Max = 10, Default = 1 },
     Callback = function(v) getgenv().AimbotSettings.Smoothness = v end
 })
 
 local aimSec2 = AimTab:Section({ Title = "FOV Circle" })
 aimSec2:Toggle({
-    Title = "Show FOV Circle", Desc = "Display a circle showing your aimbot's field of view", Icon = "circle", Flag = "ShowFOV",
+    Title = "Show FOV Circle", Desc = "Show aimbot FOV", Icon = "circle", Flag = "ShowFOV",
     Callback = function(v)
         getgenv().AimbotSettings.ShowFOV = v
         fovFrame.Visible = v
     end
 })
 aimSec2:Slider({
-    Title = "FOV Radius", Desc = "Radius of the FOV circle in pixels", Step = 10, Flag = "FOVRadius",
+    Title = "FOV Radius", Desc = "Radius in pixels", Step = 10, Flag = "FOVRadius",
     Value = { Min = 30, Max = 600, Default = 100 },
     Callback = function(v)
         getgenv().AimbotSettings.FOV = v
@@ -540,41 +571,50 @@ aimSec2:Slider({
     end
 })
 aimSec2:Slider({
-    Title = "FOV Thickness", Desc = "Thickness of the circle outline", Step = 0.5, Flag = "FOVThickness",
+    Title = "FOV Thickness", Desc = "Outline thickness", Step = 0.5, Flag = "FOVThickness",
     Value = { Min = 0.5, Max = 5, Default = 1.5 },
     Callback = function(v) fovStroke.Thickness = v end
 })
 aimSec2:Slider({
-    Title = "FOV Transparency", Desc = "Transparency of the circle (0 = solid, 1 = invisible)", Step = 0.05, Flag = "FOVTransparency",
+    Title = "FOV Transparency", Desc = "0=solid, 1=invisible", Step = 0.05, Flag = "FOVTransparency",
     Value = { Min = 0, Max = 1, Default = 0.8 },
-    Callback = function(v)
-        fovStroke.Transparency = v
-        getgenv().AimbotSettings.FOVTransparency = v
-    end
+    Callback = function(v) fovStroke.Transparency = v end
 })
 aimSec2:Toggle({
-    Title = "Rainbow FOV", Desc = "Cycle the FOV circle color through the rainbow", Icon = "palette", Flag = "RainbowFOV",
+    Title = "Rainbow FOV", Desc = "Cycle colors", Icon = "palette", Flag = "RainbowFOV",
     Callback = function(v)
         getgenv().AimbotSettings.RainbowFOV = v
-        if not v then fovStroke.Color = Color3.fromRGB(255, 0, 100) end
+        if not v then
+            fovStroke.Color = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255, 0, 100)
+        end
+    end
+})
+aimSec2:Colorpicker({
+    Title = "FOV Color",
+    Desc = "Pick a custom color",
+    Icon = "droplet",
+    Flag = "FOVColor",
+    Value = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255, 0, 100),
+    Callback = function(color)
+        getgenv().AimbotSettings.FOVColor = color
+        if not getgenv().AimbotSettings.RainbowFOV then
+            fovStroke.Color = color
+        end
     end
 })
 
 local aimSec3 = AimTab:Section({ Title = "Hitbox Expander" })
 aimSec3:Toggle({
-    Title = "Head Hitbox Size Changer", Desc = "Enlarge enemy head hitboxes for easier aiming and auto kill", Icon = "maximize-2", Flag = "HitboxEnabled",
+    Title = "Head Hitbox Size Changer", Desc = "Enlarge head hitbox", Icon = "maximize-2", Flag = "HitboxEnabled",
     Callback = function(v) getgenv().HitboxSettings.Enabled = v end
 })
 aimSec3:Slider({
-    Title = "Hitbox Size",
-    Desc = "Size of the enlarged hitbox (2-15). Affects Auto Kill visibility.",
-    Step = 1,
-    Flag = "HitboxSize",
+    Title = "Hitbox Size", Desc = "Size (2-15)", Step = 1, Flag = "HitboxSize",
     Value = { Min = 2, Max = 15, Default = 6 },
     Callback = function(v) getgenv().HitboxSettings.Size = v end
 })
 aimSec3:Toggle({
-    Title = "Hitbox Wall Check", Desc = "Only expand hitbox if the enemy is not behind a wall", Icon = "eye-off", Flag = "HitboxWallCheck",
+    Title = "Hitbox Wall Check", Desc = "Only expand if not behind wall", Icon = "eye-off", Flag = "HitboxWallCheck",
     Callback = function(v) getgenv().HitboxSettings.WallCheck = v end
 })
 
@@ -606,7 +646,7 @@ local function StartSpinBot()
 end
 
 aaSec1:Toggle({
-    Title = "Spin Bot", Desc = "Continuously rotates your character (uses either Spin or MoonWalk mode)", Icon = "refresh-cw", Flag = "SpinBotEnabled",
+    Title = "Spin Bot", Desc = "Continuously rotate", Icon = "refresh-cw", Flag = "SpinBotEnabled",
     Callback = function(state)
         getgenv().SpinBotSettings.Enabled = state
         if state then StartSpinBot()
@@ -618,13 +658,13 @@ aaSec1:Toggle({
     end
 })
 aaSec1:Dropdown({
-    Title = "SpinBot Mode", Desc = "Select the rotation style", Flag = "SpinBotMode",
+    Title = "SpinBot Mode", Desc = "Select rotation style", Flag = "SpinBotMode",
     Values = {
         { Title = "Spin", Desc = "Fast yaw spin", Icon = "refresh-cw", Callback = function()
             getgenv().SpinBotSettings.Mode = "Spin"
             if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
         end },
-        { Title = "MoonWalk", Desc = "Face opposite of camera direction", Icon = "arrow-left-right", Callback = function()
+        { Title = "MoonWalk", Desc = "Face opposite camera", Icon = "arrow-left-right", Callback = function()
             getgenv().SpinBotSettings.Mode = "MoonWalk"
             if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
         end }
@@ -633,7 +673,7 @@ aaSec1:Dropdown({
 
 local aaSec2 = AntiAimTab:Section({ Title = "Lean Spammer" })
 aaSec2:Toggle({
-    Title = "Lean Spammer", Desc = "Rapidly sends random lean stances (-1, 0, 1) to make you hard to hit", Icon = "arrow-left-right", Flag = "LeanSpammer",
+    Title = "Lean Spammer", Desc = "Random lean stances", Icon = "arrow-left-right", Flag = "LeanSpammer",
     Callback = function(state)
         if state then
             if Connections.LeanSpammer then Connections.LeanSpammer:Disconnect() end
@@ -650,7 +690,7 @@ aaSec2:Toggle({
     end
 })
 aaSec2:Slider({
-    Title = "Lean Speed", Desc = "How frequently to change lean (higher = faster)", Step = 1, Flag = "LeanSpammerSpeed",
+    Title = "Lean Speed", Desc = "How frequent (1-20)", Step = 1, Flag = "LeanSpammerSpeed",
     Value = { Min = 1, Max = 20, Default = 5 },
     Callback = function(value)
         getgenv().LeanSpammerSpeed = value
@@ -671,10 +711,10 @@ aaSec2:Slider({
 -- //////////////////////// EXPLOITS ////////////////////////
 local ExploitsTab = Window:Tab({ Title = "Exploits", Icon = "zap" })
 
--- Ping Changer Section
+-- Ping Changer
 local expSec1 = ExploitsTab:Section({ Title = "Ping Manipulation" })
 expSec1:Toggle({
-    Title = "Ping Changer", Desc = "Fake your ping on the leaderboard", Icon = "wifi", Flag = "PingChanger",
+    Title = "Ping Changer", Desc = "Fake your ping", Icon = "wifi", Flag = "PingChanger",
     Callback = function(state)
         if state then
             if Connections.PingChanger then Connections.PingChanger:Disconnect() end
@@ -692,57 +732,35 @@ expSec1:Toggle({
     end
 })
 expSec1:Toggle({
-    Title = "Random High Ping", Desc = "When Ping Changer is on, randomly set ping between 500-1000", Icon = "shuffle", Flag = "RandomHighPing",
+    Title = "Random High Ping", Desc = "Random 500-1000", Icon = "shuffle", Flag = "RandomHighPing",
     Callback = function(state) getgenv().RandomHighPingEnabled = state end
 })
 expSec1:Slider({
-    Title = "Ping Value", Desc = "Manual ping value to display (if Random High Ping is off)", Step = 1, Flag = "PingChangerValue",
+    Title = "Ping Value", Desc = "Manual value (0-1000)", Step = 1, Flag = "PingChangerValue",
     Value = { Min = 0, Max = 1000, Default = 0 },
     Callback = function(value) getgenv().PingChangerValue = value end
 })
 
--- Auto Kill Section
+-- Auto Kill
 local expSec2 = ExploitsTab:Section({ Title = "Auto Kill" })
-
 local function isAlive(character)
     local hum = character:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
 
-local function isPartVisible(origin, part, ignoreList)
-    local cf = part.CFrame
-    local size = part.Size * 0.5
-    local points = {
-        cf * Vector3.new( size.X,  size.Y,  size.Z),
-        cf * Vector3.new( size.X,  size.Y, -size.Z),
-        cf * Vector3.new( size.X, -size.Y,  size.Z),
-        cf * Vector3.new( size.X, -size.Y, -size.Z),
-        cf * Vector3.new(-size.X,  size.Y,  size.Z),
-        cf * Vector3.new(-size.X,  size.Y, -size.Z),
-        cf * Vector3.new(-size.X, -size.Y,  size.Z),
-        cf * Vector3.new(-size.X, -size.Y, -size.Z),
-        cf.Position
-    }
-    for _, point in ipairs(points) do
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Exclude
-        params.FilterDescendantsInstances = ignoreList
-        local result = workspace:Raycast(origin, point - origin, params)
-        if result == nil then return true end
-    end
-    return false
-end
-
 local autoKillV1Connection = nil
 local autoKillV1Running = false
+local autoKillV1Cooldown = 0
 local function AutoKillV1Loop()
     if not autoKillV1Running then return end
+    local now = tick()
+    if now - autoKillV1Cooldown < 0.05 then return end
     local localChar = LocalPlayer.Character
     if not localChar or not isAlive(localChar) then return end
     local remote = ReplicatedStorage:FindFirstChild("GameEvents")
     if remote then remote = remote:FindFirstChild("Damage") end
     if not remote then return end
-
+    local origin = Camera.CFrame.Position
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr == LocalPlayer then continue end
         if LocalPlayer.Team and plr.Team and plr.Team == LocalPlayer.Team then continue end
@@ -750,28 +768,29 @@ local function AutoKillV1Loop()
         if not char or not isAlive(char) then continue end
         local head = char:FindFirstChild("Head")
         if not head then continue end
-        if isPartVisible(Camera.CFrame.Position, head, {localChar, char}) then
-            local camPos = Camera.CFrame.Position
-            local endPos = head.Position
-            local dir = (endPos - camPos).Unit
+        local dir = (head.Position - origin).Unit
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        rayParams.FilterDescendantsInstances = {localChar}
+        local result = workspace:Raycast(origin, dir * 1000, rayParams)
+        if result and result.Instance:IsDescendantOf(char) then
+            local hitPoint = result.Position
+            local hitDir = (hitPoint - origin).Unit
             remote:FireServer(plr, 200, "Bayonet", {
-                Normal = -dir,
-                Direction = dir,
-                StartPosition = camPos,
-                Instance = head,
+                Normal = -hitDir,
+                Direction = hitDir,
+                StartPosition = origin,
+                Instance = result.Instance,
                 Material = Enum.Material.Plastic,
-                EndPosition = endPos
+                EndPosition = hitPoint
             })
+            autoKillV1Cooldown = now
             break
         end
     end
 end
-
 expSec2:Toggle({
-    Title = "Auto Kill V1 [BETA] (Recommended)",
-    Desc = "Automatically attacks the head of the nearest enemy if any part of the head (including enlarged hitbox) is visible",
-    Icon = "target",
-    Flag = "AutoKillV1",
+    Title = "Auto Kill V1 [BETA]", Desc = "Raycast to head", Icon = "target", Flag = "AutoKillV1",
     Callback = function(state)
         if state then
             if autoKillV1Connection then autoKillV1Connection:Disconnect() end
@@ -786,49 +805,73 @@ expSec2:Toggle({
 
 local autoKillV2Connection = nil
 local autoKillV2Running = false
+local autoKillV2Cooldown = 0
 local function AutoKillV2Loop()
     if not autoKillV2Running then return end
+    local now = tick()
+    if now - autoKillV2Cooldown < 0.05 then return end
     local localChar = LocalPlayer.Character
     if not localChar or not isAlive(localChar) then return end
     local remote = ReplicatedStorage:FindFirstChild("GameEvents")
     if remote then remote = remote:FindFirstChild("Damage") end
     if not remote then return end
-
+    local origin = Camera.CFrame.Position
     local priority = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr == LocalPlayer then continue end
         if LocalPlayer.Team and plr.Team and plr.Team == LocalPlayer.Team then continue end
         local char = plr.Character
         if not char or not isAlive(char) then continue end
-        local targetPart = nil
-        for _, name in ipairs(priority) do
-            local part = char:FindFirstChild(name)
-            if part and isPartVisible(Camera.CFrame.Position, part, {localChar, char}) then
-                targetPart = part
-                break
+        local head = char:FindFirstChild("Head")
+        if head then
+            local dir = (head.Position - origin).Unit
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Exclude
+            rayParams.FilterDescendantsInstances = {localChar}
+            local result = workspace:Raycast(origin, dir * 1000, rayParams)
+            if result and result.Instance:IsDescendantOf(char) then
+                local hitPoint = result.Position
+                local hitDir = (hitPoint - origin).Unit
+                remote:FireServer(plr, 200, "Bayonet", {
+                    Normal = -hitDir,
+                    Direction = hitDir,
+                    StartPosition = origin,
+                    Instance = result.Instance,
+                    Material = Enum.Material.Plastic,
+                    EndPosition = hitPoint
+                })
+                autoKillV2Cooldown = now
+                return
             end
         end
-        if not targetPart then continue end
-        local camPos = Camera.CFrame.Position
-        local endPos = targetPart.Position
-        local dir = (endPos - camPos).Unit
-        remote:FireServer(plr, 200, "Bayonet", {
-            Normal = -dir,
-            Direction = dir,
-            StartPosition = camPos,
-            Instance = targetPart,
-            Material = Enum.Material.Plastic,
-            EndPosition = endPos
-        })
-        break
+        for _, name in ipairs(priority) do
+            local part = char:FindFirstChild(name)
+            if part then
+                local dir = (part.Position - origin).Unit
+                local rayParams = RaycastParams.new()
+                rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                rayParams.FilterDescendantsInstances = {localChar}
+                local result = workspace:Raycast(origin, dir * 1000, rayParams)
+                if result and result.Instance:IsDescendantOf(char) then
+                    local hitPoint = result.Position
+                    local hitDir = (hitPoint - origin).Unit
+                    remote:FireServer(plr, 200, "Bayonet", {
+                        Normal = -hitDir,
+                        Direction = hitDir,
+                        StartPosition = origin,
+                        Instance = result.Instance,
+                        Material = Enum.Material.Plastic,
+                        EndPosition = hitPoint
+                    })
+                    autoKillV2Cooldown = now
+                    return
+                end
+            end
+        end
     end
 end
-
 expSec2:Toggle({
-    Title = "Auto Kill V2 [BETA]",
-    Desc = "Checks all major body parts (Head, Torso, Arms, Legs) and attacks the first visible one (respects hitbox size)",
-    Icon = "crosshair",
-    Flag = "AutoKillV2",
+    Title = "Auto Kill V2 [BETA]", Desc = "Raycast to all parts", Icon = "crosshair", Flag = "AutoKillV2",
     Callback = function(state)
         if state then
             if autoKillV2Connection then autoKillV2Connection:Disconnect() end
@@ -841,10 +884,10 @@ expSec2:Toggle({
     end
 })
 
--- Auto Teleport & Spin Around
+-- Teleport & Spin
 local expSec3 = ExploitsTab:Section({ Title = "Teleport & Spin" })
 expSec3:Toggle({
-    Title = "Auto Teleport To Enemies", Desc = "Teleports you above and slightly behind the nearest enemy (cycles every 2 seconds)", Icon = "swords", Flag = "KillAll",
+    Title = "Auto Teleport To Enemies", Desc = "Teleport above & behind", Icon = "swords", Flag = "KillAll",
     Callback = function(state)
         if state then
             local TargetIndex = 1
@@ -892,7 +935,7 @@ expSec3:Toggle({
     end
 })
 expSec3:Toggle({
-    Title = "Spin Around Target", Desc = "Orbits around the nearest enemy at high speed (requires Auto Teleport to be ON)", Icon = "rotate-cw", Flag = "SpinAround",
+    Title = "Spin Around Target", Desc = "Orbit enemy (needs Auto Teleport)", Icon = "rotate-cw", Flag = "SpinAround",
     Callback = function(state)
         getgenv().SpinAroundEnabled = state
         if state then
@@ -903,7 +946,6 @@ expSec3:Toggle({
                 if not localChar then return end
                 local lRoot = localChar:FindFirstChild("HumanoidRootPart")
                 if not lRoot then return end
-
                 local targetChar = nil
                 local targetHRP = nil
                 local shortestDist = math.huge
@@ -934,10 +976,10 @@ expSec3:Toggle({
     end
 })
 
--- No Reload & Barricades
+-- Weapon & Build
 local expSec4 = ExploitsTab:Section({ Title = "Weapon & Build" })
 expSec4:Toggle({
-    Title = "No Reload", Desc = "Prevents the need to reload (spams the reload remote)", Icon = "repeat", Flag = "InfiniteAmmo",
+    Title = "No Reload", Desc = "Spam reload remote", Icon = "repeat", Flag = "InfiniteAmmo",
     Callback = function(state)
         if state then
             Connections.InfiniteAmmo = RunService.Heartbeat:Connect(function()
@@ -980,7 +1022,7 @@ local function applyInstaBarricade()
     end
 end
 expSec4:Toggle({
-    Title = "Insta Barricade", Desc = "Sets all proximity prompt hold durations to 0 (instant barricade build)", Icon = "zap", Flag = "InstaBarricade",
+    Title = "Insta Barricade", Desc = "Instant build", Icon = "zap", Flag = "InstaBarricade",
     Callback = function(state)
         instaBarricadeEnabled = state
         applyInstaBarricade()
@@ -1001,7 +1043,7 @@ local function startAutoBarricade()
     end)
 end
 expSec4:Toggle({
-    Title = "Auto Barricade", Desc = "Automatically interacts with any proximity prompt you look at (for building barricades)", Icon = "refresh-cw", Flag = "AutoBarricade",
+    Title = "Auto Barricade", Desc = "Auto-build prompts", Icon = "refresh-cw", Flag = "AutoBarricade",
     Callback = function(state)
         autoBarricadeEnabled = state
         if state then startAutoBarricade()
@@ -1011,7 +1053,7 @@ expSec4:Toggle({
     end
 })
 
--- Auto Ping
+-- Ping Spam
 local expSec5 = ExploitsTab:Section({ Title = "Ping Spam" })
 local autoPingEnabled = false
 local nearest3PingEnabled = false
@@ -1070,16 +1112,15 @@ local function updateAutoPing()
         end
     end)
 end
-
 expSec5:Toggle({
-    Title = "Auto Ping (Crosshair)", Desc = "Automatically pings the enemy closest to your crosshair every 0.333s", Icon = "map-pin", Flag = "AutoPing",
+    Title = "Auto Ping", Desc = "Ping under crosshair", Icon = "map-pin", Flag = "AutoPing",
     Callback = function(state)
         autoPingEnabled = state
         updateAutoPing()
     end
 })
 expSec5:Toggle({
-    Title = "Nearest 3 Ping", Desc = "Pings the 3 nearest enemies rapidly (overrides crosshair delay)", Icon = "target", Flag = "Nearest3Ping",
+    Title = "Nearest 3 Ping", Desc = "Ping 3 nearest", Icon = "target", Flag = "Nearest3Ping",
     Callback = function(state)
         nearest3PingEnabled = state
         if autoPingEnabled then updateAutoPing() end
@@ -1089,22 +1130,20 @@ expSec5:Toggle({
 -- Utility Buttons
 local expSec6 = ExploitsTab:Section({ Title = "Utility Buttons" })
 expSec6:Button({
-    Title = "Anti Kick", Desc = "Executes a script that prevents you from being kicked (may break leave button)",
+    Title = "Anti Kick", Desc = "Prevent kicks",
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end
 })
 expSec6:Button({
-    Title = "Gun Spoofer", Desc = "Equip any tool from the workspace (useful for obtaining weapons)",
+    Title = "Gun Spoofer", Desc = "Equip any tool",
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
 })
 
--- ==================== JUMBSCARE (under Exploits) ====================
+-- Jumpscare
 local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
-
 local jumpscareDelay = 0.1
-
 expSec7:Button({
     Title = "Jumpscare",
-    Desc = "Instantly teleports you in front of the enemy you're looking at (even through walls), then returns after a delay",
+    Desc = "Teleport to enemy you're looking at, then back",
     Callback = function()
         local function getEnemyUnderCrosshair()
             local lp = LocalPlayer
@@ -1112,7 +1151,6 @@ expSec7:Button({
             local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
             local closest = nil
             local closestDist = 150
-
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr == lp then continue end
                 if lp.Team and plr.Team and plr.Team == lp.Team then continue end
@@ -1130,94 +1168,92 @@ expSec7:Button({
             end
             return closest
         end
-
         local target = getEnemyUnderCrosshair()
-        if not target then
-            print("No enemy under crosshair")
-            return
-        end
-
+        if not target then return end
         local lpChar = LocalPlayer.Character
         if not lpChar then return end
         local lRoot = lpChar:FindFirstChild("HumanoidRootPart")
         if not lRoot then return end
-
         local originalCF = lRoot.CFrame
         local originalCamCF = Camera.CFrame
-
         local enemyRoot = target.HRP
         local enemyHead = target.Head or enemyRoot
         local enemyCF = enemyRoot.CFrame
         local frontOffset = enemyCF.LookVector * 2.5
         local newPos = enemyCF.Position + frontOffset
         newPos = Vector3.new(newPos.X, enemyCF.Position.Y + 1, newPos.Z)
-
         lRoot.CFrame = CFrame.new(newPos, enemyHead.Position)
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemyHead.Position)
-
         task.wait(jumpscareDelay)
-
         lRoot.CFrame = originalCF
         Camera.CFrame = originalCamCF
     end
 })
-
-local delaySlider = expSec7:Slider({
-    Title = "Jumpscare Delay",
-    Desc = "Time in seconds before teleporting back (0.0 – 2.0, step 0.1)",
-    Step = 0.1,
-    Flag = "JumpscareDelay",
+expSec7:Slider({
+    Title = "Jumpscare Delay", Desc = "Time before return (0-2s)", Step = 0.1, Flag = "JumpscareDelay",
     Value = { Min = 0, Max = 2, Default = 0.1 },
-    Callback = function(value)
-        jumpscareDelay = value
-    end
+    Callback = function(value) jumpscareDelay = value end
 })
-currentConfig:Register("JumpscareDelay", delaySlider)
 
 -- //////////////////////// VISUALS ////////////////////////
 local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
 local visSec1 = VisualsTab:Section({ Title = "ESP" })
 visSec1:Toggle({
-    Title = "Skeleton ESP", Desc = "Draws lines connecting enemy body parts (requires Drawing library)", Icon = "activity", Flag = "SkeletonESP",
+    Title = "Skeleton ESP", Desc = "Body lines", Icon = "activity", Flag = "SkeletonESP",
     Callback = function(v) getgenv().EspSettings.Skeleton = v end
 })
 visSec1:Toggle({
-    Title = "Tracers ESP", Desc = "Draws a line from the bottom of your screen to the enemy", Icon = "trending-up", Flag = "TracersESP",
+    Title = "Tracers ESP", Desc = "Line from bottom", Icon = "trending-up", Flag = "TracersESP",
     Callback = function(v) getgenv().EspSettings.Tracers = v end
 })
 visSec1:Toggle({
-    Title = "Name ESP", Desc = "Displays player names above their head", Icon = "user", Flag = "NameESP",
+    Title = "Name ESP", Desc = "Player name", Icon = "user", Flag = "NameESP",
     Callback = function(v) getgenv().EspSettings.Name = v end
 })
 visSec1:Toggle({
-    Title = "Health ESP", Desc = "Shows health percentage above enemies", Icon = "heart", Flag = "HealthESP",
+    Title = "Health ESP", Desc = "Health %", Icon = "heart", Flag = "HealthESP",
     Callback = function(v) getgenv().EspSettings.Health = v end
 })
 visSec1:Toggle({
-    Title = "Tool ESP", Desc = "Shows the name of the tool the enemy is holding", Icon = "wrench", Flag = "ToolESP",
+    Title = "Tool ESP", Desc = "Tool name", Icon = "wrench", Flag = "ToolESP",
     Callback = function(v) getgenv().EspSettings.Tool = v end
 })
 visSec1:Toggle({
-    Title = "Rainbow ESP", Desc = "Makes all ESP colors cycle through the rainbow", Icon = "palette", Flag = "RainbowESP",
+    Title = "Rainbow ESP", Desc = "Cycle colors", Icon = "palette", Flag = "RainbowESP",
     Callback = function(v) getgenv().EspSettings.Rainbow = v end
 })
 
--- New Section: ESP Appearance
+visSec1:Colorpicker({
+    Title = "Enemy ESP Color",
+    Desc = "Color for enemies",
+    Icon = "droplet",
+    Flag = "EnemyESPColor",
+    Value = getgenv().EspSettings.EnemyColor or Color3.fromRGB(255, 50, 50),
+    Callback = function(color)
+        getgenv().EspSettings.EnemyColor = color
+    end
+})
+visSec1:Colorpicker({
+    Title = "Teammate ESP Color",
+    Desc = "Color for teammates",
+    Icon = "droplet",
+    Flag = "TeammateESPColor",
+    Value = getgenv().EspSettings.TeammateColor or Color3.fromRGB(50, 150, 255),
+    Callback = function(color)
+        getgenv().EspSettings.TeammateColor = color
+    end
+})
+
 local visSec4 = VisualsTab:Section({ Title = "ESP Appearance" })
 visSec4:Slider({
-    Title = "Esp Thickness",
-    Desc = "Thickness of ESP lines (skeleton and tracers) – 1 to 5",
-    Step = 0.1,
-    Flag = "ESPLineThickness",
-    Value = { Min = 0, Max = 5, Default = 2 },
-    Callback = function(v)
-        getgenv().EspSettings.LineThickness = v
-    end
+    Title = "Line Thickness", Desc = "1-5", Step = 0.1, Flag = "ESPLineThickness",
+    Value = { Min = 1, Max = 5, Default = 2 },
+    Callback = function(v) getgenv().EspSettings.LineThickness = v end
 })
 
 local visSec2 = VisualsTab:Section({ Title = "Other Visuals" })
 visSec2:Toggle({
-    Title = "Player Wallhack (Chams)", Desc = "Highlights enemy players with a colored outline through walls", Icon = "users", Flag = "Chams",
+    Title = "Player Wallhack (Chams)", Desc = "Outline through walls", Icon = "users", Flag = "Chams",
     Callback = function(state)
         if state then
             local function ApplyChams(player)
@@ -1252,7 +1288,7 @@ visSec2:Toggle({
     end
 })
 visSec2:Toggle({
-    Title = "Fullbright", Desc = "Makes the game world fully bright (no shadows)", Icon = "sun", Flag = "Fullbright",
+    Title = "Fullbright", Desc = "No shadows", Icon = "sun", Flag = "Fullbright",
     Callback = function(state)
         if state then
             Lighting.Brightness = 4
@@ -1266,37 +1302,11 @@ visSec2:Toggle({
     end
 })
 
-local visSec3 = VisualsTab:Section({ Title = "FOV Color" })
-visSec3:Slider({
-    Title = "FOV Red", Step = 1, Flag = "FOVRed",
-    Value = { Min = 0, Max = 255, Default = 255 },
-    Callback = function(v)
-        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
-        fovStroke.Color = Color3.fromRGB(v,g,b)
-    end
-})
-visSec3:Slider({
-    Title = "FOV Green", Step = 1, Flag = "FOVGreen",
-    Value = { Min = 0, Max = 255, Default = 0 },
-    Callback = function(v)
-        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
-        fovStroke.Color = Color3.fromRGB(r,v,b)
-    end
-})
-visSec3:Slider({
-    Title = "FOV Blue", Step = 1, Flag = "FOVBlue",
-    Value = { Min = 0, Max = 255, Default = 100 },
-    Callback = function(v)
-        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
-        fovStroke.Color = Color3.fromRGB(r,g,v)
-    end
-})
-
 -- //////////////////////// UTILITY ////////////////////////
 local UtilTab = Window:Tab({ Title = "Utility", Icon = "wrench" })
 local utilSec1 = UtilTab:Section({ Title = "Camera" })
 utilSec1:Toggle({
-    Title = "Camera FOV Override", Desc = "Override your camera's field of view", Icon = "eye", Flag = "CameraFOVEnabled",
+    Title = "Camera FOV Override", Desc = "Override FOV", Icon = "eye", Flag = "CameraFOVEnabled",
     Callback = function(state)
         getgenv().CameraFOVEnabled = state
         if state then
@@ -1314,7 +1324,7 @@ utilSec1:Toggle({
     end
 })
 utilSec1:Slider({
-    Title = "Camera FOV Value", Desc = "Field of view in degrees (60-150)", Step = 1, Flag = "CameraFOVValue",
+    Title = "Camera FOV Value", Desc = "FOV in degrees (60-150)", Step = 1, Flag = "CameraFOVValue",
     Value = { Min = 60, Max = 150, Default = 70 },
     Callback = function(value)
         getgenv().CameraFOVValue = value
@@ -1324,25 +1334,25 @@ utilSec1:Slider({
 
 local utilSec2 = UtilTab:Section({ Title = "Misc" })
 utilSec2:Button({
-    Title = "Teleport Upwards", Desc = "Moves you 25 studs up",
+    Title = "Teleport Upwards", Desc = "+25 studs",
     Callback = function()
         local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if r then r.CFrame = r.CFrame + Vector3.new(0,25,0) end
     end
 })
 utilSec2:Button({
-    Title = "Teleport Downwards", Desc = "Moves you 15 studs down",
+    Title = "Teleport Downwards", Desc = "-15 studs",
     Callback = function()
         local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end
     end
 })
 utilSec2:Button({
-    Title = "Infinite Camera Zoom", Desc = "Sets your maximum zoom distance to 5000",
+    Title = "Infinite Camera Zoom", Desc = "Zoom distance 5000",
     Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end
 })
 utilSec2:Button({
-    Title = "Respawn / Reset Character", Desc = "Kills your current character (forces respawn)",
+    Title = "Respawn / Reset Character", Desc = "Kill character",
     Callback = function()
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum.Health = 0 end
@@ -1352,42 +1362,60 @@ utilSec2:Button({
 -- //////////////////////// SETTINGS ////////////////////////
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 local setSec1 = SettingsTab:Section({ Title = "Theme" })
-local themeDropdownValues = {}
-for _, t in ipairs(customThemes) do
-    table.insert(themeDropdownValues, {
-        Title = t.Name,
-        Icon = "palette",
-        Callback = function()
-            WindUI:SetTheme(t.Name)
-            pcall(function()
-                if isfolder and makefolder and writefile then
-                    if not isfolder("BR_Hub") then makefolder("BR_Hub") end
-                    writefile("BR_Hub/theme.txt", t.Name)
-                end
-            end)
-        end
-    })
+local themeNames = {}
+for _, theme in ipairs(customThemes) do
+    table.insert(themeNames, theme.Name)
 end
+table.sort(themeNames)
+
 setSec1:Dropdown({
-    Title = "Select Interface Theme",
-    Desc = "Choose a UI color scheme (saves automatically)",
-    Values = themeDropdownValues
+    Title = "Select Theme",
+    Desc = "Auto-saved",
+    Icon = "palette",
+    Flag = "SavedTheme",
+    Values = themeNames,
+    Value = savedTheme or "Ocean",
+    Callback = function(theme)
+        pcall(function() WindUI:SetTheme(theme) end)
+        pcall(function()
+            currentConfig:Set("SavedTheme", theme)
+            currentConfig:Save()
+        end)
+    end
 })
 
 local setSec2 = SettingsTab:Section({ Title = "Config Management" })
 setSec2:Button({
     Title = "Save Config",
-    Desc = "Save all current settings to DefaultConfig.json",
-    Callback = function() currentConfig:Save() end
+    Desc = "Save all settings",
+    Icon = "save",
+    Callback = function()
+        currentConfig:Save()
+    end
 })
 setSec2:Button({
     Title = "Load Config",
-    Desc = "Load settings from DefaultConfig.json (overwrites current)",
-    Callback = function() currentConfig:Load() end
+    Desc = "Load settings from disk",
+    Icon = "refresh-cw",
+    Callback = function()
+        currentConfig:Load()
+        local loadedTheme = pcall(function() return currentConfig:Get("SavedTheme") end)
+        if loadedTheme then
+            pcall(function() WindUI:SetTheme(loadedTheme) end)
+        end
+    end
+})
+setSec2:Button({
+    Title = "Delete Config",
+    Desc = "Delete config file",
+    Icon = "trash-2",
+    Callback = function()
+        currentConfig:Delete()
+    end
 })
 
 -- ============================================================
--- Character Respawn Handler
+-- Respawn Handler
 -- ============================================================
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
@@ -1395,6 +1423,14 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ============================================================
--- Load saved config
+-- Load saved config on start
 -- ============================================================
-pcall(function() currentConfig:Load() end)
+pcall(function()
+    currentConfig:Load()
+    local loadedTheme = pcall(function() return currentConfig:Get("SavedTheme") end)
+    if loadedTheme and loadedTheme ~= "" and loadedTheme ~= "Ocean" then
+        pcall(function() WindUI:SetTheme(loadedTheme) end)
+    end
+end)
+
+print("✅ BR Hub loaded successfully")
