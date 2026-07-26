@@ -34,12 +34,13 @@ getgenv().EspSettings = {
     Name = false,
     Health = false,
     Tool = false,
-    Rainbow = false
+    Rainbow = false,
+    LineThickness = 2  -- new
 }
 getgenv().HitboxSettings = { Enabled = false, Size = 4, WallCheck = false }
 getgenv().WalkSpeedValue = 16
 getgenv().JumpPowerValue = 50
-getgenv().TPWalkSpeed = 50
+getgenv().TPWalkSpeed = 0
 getgenv().CameraFOVEnabled = false
 getgenv().CameraFOVValue = 70
 getgenv().RandomHighPingEnabled = false
@@ -236,14 +237,15 @@ local function clearESP()
     espObjects = {}
 end
 
-local function createLine2D(from, to, color, thickness)
+local function createLine2D(from, to, color)
+    local thickness = getgenv().EspSettings.LineThickness or 2
     local length = (to - from).Magnitude
     if length < 1 then return nil end
     local angle = math.atan2(to.Y - from.Y, to.X - from.X)
     local mid = (from + to) / 2
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, length, 0, thickness or 2)
-    frame.Position = UDim2.new(0, mid.X - length/2, 0, mid.Y - (thickness or 2)/2)
+    frame.Size = UDim2.new(0, length, 0, thickness)
+    frame.Position = UDim2.new(0, mid.X - length/2, 0, mid.Y - thickness/2)
     frame.BackgroundColor3 = color
     frame.BackgroundTransparency = 0
     frame.BorderSizePixel = 0
@@ -321,7 +323,7 @@ local function updateESP()
                 local f2, fOn = worldToScreen(fromW)
                 local t2, tOn = worldToScreen(toW)
                 if fOn and tOn then
-                    local line = createLine2D(f2, t2, col, 2)
+                    local line = createLine2D(f2, t2, col)
                     if line then table.insert(espObjects, line) end
                 end
             end
@@ -337,7 +339,7 @@ local function updateESP()
         if espSettings.Tracers and hrp then
             local toP, on = Camera:WorldToViewportPoint(hrp.Position)
             if on then
-                local line = createLine2D(tracerStart, Vector2.new(toP.X, toP.Y), displayColor, 2)
+                local line = createLine2D(tracerStart, Vector2.new(toP.X, toP.Y), displayColor)
                 if line then table.insert(espObjects, line) end
             end
         end
@@ -427,7 +429,7 @@ movSec1:Slider({
     end
 })
 movSec1:Slider({
-    Title = "JumpPower", Desc = "Jump height (max 50)", Step = 1, Flag = "JumpPower",
+    Title = "JumpPower", Desc = "Jump height (max 50, default 50)", Step = 1, Flag = "JumpPower",
     Value = { Min = 16, Max = 50, Default = 50 },
     Callback = function(value)
         getgenv().JumpPowerValue = value
@@ -436,8 +438,8 @@ movSec1:Slider({
     end
 })
 movSec1:Slider({
-    Title = "TP Walk Speed", Desc = "Multiplier for TP Walk (10-200)", Step = 1, Flag = "TPWalkSpeed",
-    Value = { Min = 0, Max = 50, Default = 0 },
+    Title = "TP Walk Speed", Desc = "Multiplier for TP Walk (0-20, default 0)", Step = 1, Flag = "TPWalkSpeed",
+    Value = { Min = 0, Max = 20, Default = 0 },
     Callback = function(value) getgenv().TPWalkSpeed = value end
 })
 
@@ -458,7 +460,7 @@ movSec2:Toggle({
     end
 })
 movSec2:Toggle({
-    Title = "Noclip", Desc = "Through walls", Icon = "ghost", Flag = "Noclip",
+    Title = "Noclip", Desc = "Walk through walls (does not affect character collisions permanently)", Icon = "ghost", Flag = "Noclip",
     Callback = function(state)
         if state then
             Connections.Noclip = RunService.Stepped:Connect(function()
@@ -475,7 +477,7 @@ movSec2:Toggle({
     end
 })
 movSec2:Toggle({
-    Title = "TP Walk", Desc = "Forced high-speed movement", Icon = "zap", Flag = "TPWalk",
+    Title = "TP Walk", Desc = "Teleports you forward in the direction you move (speed multiplier above)", Icon = "zap", Flag = "TPWalk",
     Callback = function(state)
         if state then
             if Connections.TPWalk then Connections.TPWalk:Disconnect() end
@@ -488,7 +490,7 @@ movSec2:Toggle({
                 if not hum or not root then return end
                 local dir = hum.MoveDirection
                 if dir.Magnitude > 0.1 then
-                    local speed = getgenv().TPWalkSpeed or 50
+                    local speed = getgenv().TPWalkSpeed or 0
                     root.CFrame = root.CFrame + (dir * speed * dt)
                 end
             end)
@@ -504,33 +506,33 @@ movSec2:Toggle({
 local AimTab = Window:Tab({ Title = "Aim", Icon = "crosshair" })
 local aimSec1 = AimTab:Section({ Title = "Aimbot Settings" })
 aimSec1:Toggle({
-    Title = "Aimbot (Camera Lock)", Desc = "Locks camera onto target", Icon = "target", Flag = "Aimbot",
+    Title = "Aimbot (Camera Lock)", Desc = "Locks your camera onto the nearest enemy player", Icon = "target", Flag = "Aimbot",
     Callback = function(v) getgenv().AimbotSettings.Enabled = v end
 })
 aimSec1:Toggle({
-    Title = "Team Check", Icon = "users", Flag = "TeamCheck",
+    Title = "Team Check", Desc = "Ignore teammates when locking", Icon = "users", Flag = "TeamCheck",
     Callback = function(v) getgenv().AimbotSettings.TeamCheck = v end
 })
 aimSec1:Toggle({
-    Title = "Visible Only", Desc = "Raycast visibility", Icon = "eye", Flag = "VisibleOnly",
+    Title = "Visible Only", Desc = "Only lock onto enemies you can see (line-of-sight)", Icon = "eye", Flag = "VisibleOnly",
     Callback = function(v) getgenv().AimbotSettings.VisibleOnly = v end
 })
 aimSec1:Slider({
-    Title = "Aimbot Smoothness", Step = 1, Flag = "Smoothness",
+    Title = "Aimbot Smoothness", Desc = "Lower = faster lock (1 is instant)", Step = 1, Flag = "Smoothness",
     Value = { Min = 1, Max = 10, Default = 1 },
     Callback = function(v) getgenv().AimbotSettings.Smoothness = v end
 })
 
 local aimSec2 = AimTab:Section({ Title = "FOV Circle" })
 aimSec2:Toggle({
-    Title = "Show FOV Circle", Icon = "circle", Flag = "ShowFOV",
+    Title = "Show FOV Circle", Desc = "Display a circle showing your aimbot's field of view", Icon = "circle", Flag = "ShowFOV",
     Callback = function(v)
         getgenv().AimbotSettings.ShowFOV = v
         fovFrame.Visible = v
     end
 })
 aimSec2:Slider({
-    Title = "FOV Radius", Step = 10, Flag = "FOVRadius",
+    Title = "FOV Radius", Desc = "Radius of the FOV circle in pixels", Step = 10, Flag = "FOVRadius",
     Value = { Min = 30, Max = 600, Default = 100 },
     Callback = function(v)
         getgenv().AimbotSettings.FOV = v
@@ -538,12 +540,12 @@ aimSec2:Slider({
     end
 })
 aimSec2:Slider({
-    Title = "FOV Thickness", Step = 0.5, Flag = "FOVThickness",
+    Title = "FOV Thickness", Desc = "Thickness of the circle outline", Step = 0.5, Flag = "FOVThickness",
     Value = { Min = 0.5, Max = 5, Default = 1.5 },
     Callback = function(v) fovStroke.Thickness = v end
 })
 aimSec2:Slider({
-    Title = "FOV Transparency", Step = 0.05, Flag = "FOVTransparency",
+    Title = "FOV Transparency", Desc = "Transparency of the circle (0 = solid, 1 = invisible)", Step = 0.05, Flag = "FOVTransparency",
     Value = { Min = 0, Max = 1, Default = 0.8 },
     Callback = function(v)
         fovStroke.Transparency = v
@@ -551,7 +553,7 @@ aimSec2:Slider({
     end
 })
 aimSec2:Toggle({
-    Title = "Rainbow FOV", Desc = "Smoothly cycles the FOV circle color", Icon = "palette", Flag = "RainbowFOV",
+    Title = "Rainbow FOV", Desc = "Cycle the FOV circle color through the rainbow", Icon = "palette", Flag = "RainbowFOV",
     Callback = function(v)
         getgenv().AimbotSettings.RainbowFOV = v
         if not v then fovStroke.Color = Color3.fromRGB(255, 0, 100) end
@@ -560,16 +562,19 @@ aimSec2:Toggle({
 
 local aimSec3 = AimTab:Section({ Title = "Hitbox Expander" })
 aimSec3:Toggle({
-    Title = "Head Hitbox Size Changer", Icon = "maximize-2", Flag = "HitboxEnabled",
+    Title = "Head Hitbox Size Changer", Desc = "Enlarge enemy head hitboxes for easier aiming and auto kill", Icon = "maximize-2", Flag = "HitboxEnabled",
     Callback = function(v) getgenv().HitboxSettings.Enabled = v end
 })
 aimSec3:Slider({
-    Title = "Hitbox Size", Step = 1, Flag = "HitboxSize",
-    Value = { Min = 2, Max = 12, Default = 6 },
+    Title = "Hitbox Size",
+    Desc = "Size of the enlarged hitbox (2-15). Affects Auto Kill visibility.",
+    Step = 1,
+    Flag = "HitboxSize",
+    Value = { Min = 2, Max = 15, Default = 6 },
     Callback = function(v) getgenv().HitboxSettings.Size = v end
 })
 aimSec3:Toggle({
-    Title = "Hitbox Wall Check", Icon = "eye-off", Flag = "HitboxWallCheck",
+    Title = "Hitbox Wall Check", Desc = "Only expand hitbox if the enemy is not behind a wall", Icon = "eye-off", Flag = "HitboxWallCheck",
     Callback = function(v) getgenv().HitboxSettings.WallCheck = v end
 })
 
@@ -601,7 +606,7 @@ local function StartSpinBot()
 end
 
 aaSec1:Toggle({
-    Title = "Spin Bot", Desc = "Spins the player in circles", Icon = "refresh-cw", Flag = "SpinBotEnabled",
+    Title = "Spin Bot", Desc = "Continuously rotates your character (uses either Spin or MoonWalk mode)", Icon = "refresh-cw", Flag = "SpinBotEnabled",
     Callback = function(state)
         getgenv().SpinBotSettings.Enabled = state
         if state then StartSpinBot()
@@ -613,13 +618,13 @@ aaSec1:Toggle({
     end
 })
 aaSec1:Dropdown({
-    Title = "SpinBot Mode", Desc = "Select spin type", Flag = "SpinBotMode",
+    Title = "SpinBot Mode", Desc = "Select the rotation style", Flag = "SpinBotMode",
     Values = {
         { Title = "Spin", Desc = "Fast yaw spin", Icon = "refresh-cw", Callback = function()
             getgenv().SpinBotSettings.Mode = "Spin"
             if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
         end },
-        { Title = "MoonWalk", Desc = "Face opposite of camera", Icon = "arrow-left-right", Callback = function()
+        { Title = "MoonWalk", Desc = "Face opposite of camera direction", Icon = "arrow-left-right", Callback = function()
             getgenv().SpinBotSettings.Mode = "MoonWalk"
             if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
         end }
@@ -628,7 +633,7 @@ aaSec1:Dropdown({
 
 local aaSec2 = AntiAimTab:Section({ Title = "Lean Spammer" })
 aaSec2:Toggle({
-    Title = "Lean Spammer", Desc = "Rapidly sends random lean stances (-1, 0, 1)", Icon = "arrow-left-right", Flag = "LeanSpammer",
+    Title = "Lean Spammer", Desc = "Rapidly sends random lean stances (-1, 0, 1) to make you hard to hit", Icon = "arrow-left-right", Flag = "LeanSpammer",
     Callback = function(state)
         if state then
             if Connections.LeanSpammer then Connections.LeanSpammer:Disconnect() end
@@ -645,7 +650,7 @@ aaSec2:Toggle({
     end
 })
 aaSec2:Slider({
-    Title = "Lean Speed", Desc = "Controls how fast the lean changes (1-20)", Step = 1, Flag = "LeanSpammerSpeed",
+    Title = "Lean Speed", Desc = "How frequently to change lean (higher = faster)", Step = 1, Flag = "LeanSpammerSpeed",
     Value = { Min = 1, Max = 20, Default = 5 },
     Callback = function(value)
         getgenv().LeanSpammerSpeed = value
@@ -669,7 +674,7 @@ local ExploitsTab = Window:Tab({ Title = "Exploits", Icon = "zap" })
 -- Ping Changer Section
 local expSec1 = ExploitsTab:Section({ Title = "Ping Manipulation" })
 expSec1:Toggle({
-    Title = "Ping Changer", Desc = "Changes the ping people see on the leaderboard", Icon = "wifi", Flag = "PingChanger",
+    Title = "Ping Changer", Desc = "Fake your ping on the leaderboard", Icon = "wifi", Flag = "PingChanger",
     Callback = function(state)
         if state then
             if Connections.PingChanger then Connections.PingChanger:Disconnect() end
@@ -687,11 +692,11 @@ expSec1:Toggle({
     end
 })
 expSec1:Toggle({
-    Title = "Random High Ping", Desc = "Randomizes ping between 500-1000 when Ping Changer is on", Icon = "shuffle", Flag = "RandomHighPing",
+    Title = "Random High Ping", Desc = "When Ping Changer is on, randomly set ping between 500-1000", Icon = "shuffle", Flag = "RandomHighPing",
     Callback = function(state) getgenv().RandomHighPingEnabled = state end
 })
 expSec1:Slider({
-    Title = "Ping Value", Desc = "Sets the ping value (0 to 1000)", Step = 1, Flag = "PingChangerValue",
+    Title = "Ping Value", Desc = "Manual ping value to display (if Random High Ping is off)", Step = 1, Flag = "PingChangerValue",
     Value = { Min = 0, Max = 1000, Default = 0 },
     Callback = function(value) getgenv().PingChangerValue = value end
 })
@@ -699,7 +704,6 @@ expSec1:Slider({
 -- Auto Kill Section
 local expSec2 = ExploitsTab:Section({ Title = "Auto Kill" })
 
--- Helper functions for visibility
 local function isAlive(character)
     local hum = character:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
@@ -746,25 +750,28 @@ local function AutoKillV1Loop()
         if not char or not isAlive(char) then continue end
         local head = char:FindFirstChild("Head")
         if not head then continue end
-        if not isPartVisible(Camera.CFrame.Position, head, {localChar, char}) then continue end
-
-        local camPos = Camera.CFrame.Position
-        local endPos = head.Position
-        local dir = (endPos - camPos).Unit
-        remote:FireServer(plr, 200, "Bayonet", {
-            Normal = -dir,
-            Direction = dir,
-            StartPosition = camPos,
-            Instance = head,
-            Material = Enum.Material.Plastic,
-            EndPosition = endPos
-        })
-        break
+        if isPartVisible(Camera.CFrame.Position, head, {localChar, char}) then
+            local camPos = Camera.CFrame.Position
+            local endPos = head.Position
+            local dir = (endPos - camPos).Unit
+            remote:FireServer(plr, 200, "Bayonet", {
+                Normal = -dir,
+                Direction = dir,
+                StartPosition = camPos,
+                Instance = head,
+                Material = Enum.Material.Plastic,
+                EndPosition = endPos
+            })
+            break
+        end
     end
 end
 
 expSec2:Toggle({
-    Title = "Auto Kill V1 [BETA] (Recommended)", Desc = "Targets head if any part of it is visible", Icon = "target", Flag = "AutoKillV1",
+    Title = "Auto Kill V1 [BETA] (Recommended)",
+    Desc = "Automatically attacks the head of the nearest enemy if any part of the head (including enlarged hitbox) is visible",
+    Icon = "target",
+    Flag = "AutoKillV1",
     Callback = function(state)
         if state then
             if autoKillV1Connection then autoKillV1Connection:Disconnect() end
@@ -818,7 +825,10 @@ local function AutoKillV2Loop()
 end
 
 expSec2:Toggle({
-    Title = "Auto Kill V2 [BETA]", Desc = "Targets any visible part of the body (checks multiple points)", Icon = "crosshair", Flag = "AutoKillV2",
+    Title = "Auto Kill V2 [BETA]",
+    Desc = "Checks all major body parts (Head, Torso, Arms, Legs) and attacks the first visible one (respects hitbox size)",
+    Icon = "crosshair",
+    Flag = "AutoKillV2",
     Callback = function(state)
         if state then
             if autoKillV2Connection then autoKillV2Connection:Disconnect() end
@@ -834,7 +844,7 @@ expSec2:Toggle({
 -- Auto Teleport & Spin Around
 local expSec3 = ExploitsTab:Section({ Title = "Teleport & Spin" })
 expSec3:Toggle({
-    Title = "Auto Teleport To Enemies", Desc = "Teleports above & behind enemies", Icon = "swords", Flag = "KillAll",
+    Title = "Auto Teleport To Enemies", Desc = "Teleports you above and slightly behind the nearest enemy (cycles every 2 seconds)", Icon = "swords", Flag = "KillAll",
     Callback = function(state)
         if state then
             local TargetIndex = 1
@@ -882,7 +892,7 @@ expSec3:Toggle({
     end
 })
 expSec3:Toggle({
-    Title = "Spin Around Target", Desc = "Orbits around the nearest enemy (requires Auto Teleport)", Icon = "rotate-cw", Flag = "SpinAround",
+    Title = "Spin Around Target", Desc = "Orbits around the nearest enemy at high speed (requires Auto Teleport to be ON)", Icon = "rotate-cw", Flag = "SpinAround",
     Callback = function(state)
         getgenv().SpinAroundEnabled = state
         if state then
@@ -927,7 +937,7 @@ expSec3:Toggle({
 -- No Reload & Barricades
 local expSec4 = ExploitsTab:Section({ Title = "Weapon & Build" })
 expSec4:Toggle({
-    Title = "No Reload", Desc = "When enabled, you will not have to reload", Icon = "repeat", Flag = "InfiniteAmmo",
+    Title = "No Reload", Desc = "Prevents the need to reload (spams the reload remote)", Icon = "repeat", Flag = "InfiniteAmmo",
     Callback = function(state)
         if state then
             Connections.InfiniteAmmo = RunService.Heartbeat:Connect(function()
@@ -970,7 +980,7 @@ local function applyInstaBarricade()
     end
 end
 expSec4:Toggle({
-    Title = "Insta Barricade", Desc = "Sets all proximity prompt hold durations to 0", Icon = "zap", Flag = "InstaBarricade",
+    Title = "Insta Barricade", Desc = "Sets all proximity prompt hold durations to 0 (instant barricade build)", Icon = "zap", Flag = "InstaBarricade",
     Callback = function(state)
         instaBarricadeEnabled = state
         applyInstaBarricade()
@@ -991,7 +1001,7 @@ local function startAutoBarricade()
     end)
 end
 expSec4:Toggle({
-    Title = "Auto Barricade", Desc = "Automatically builds barricades as soon as they appear", Icon = "refresh-cw", Flag = "AutoBarricade",
+    Title = "Auto Barricade", Desc = "Automatically interacts with any proximity prompt you look at (for building barricades)", Icon = "refresh-cw", Flag = "AutoBarricade",
     Callback = function(state)
         autoBarricadeEnabled = state
         if state then startAutoBarricade()
@@ -1062,14 +1072,14 @@ local function updateAutoPing()
 end
 
 expSec5:Toggle({
-    Title = "Auto Ping (Crosshair)", Desc = "Pings the enemy under your crosshair every 0.333s", Icon = "map-pin", Flag = "AutoPing",
+    Title = "Auto Ping (Crosshair)", Desc = "Automatically pings the enemy closest to your crosshair every 0.333s", Icon = "map-pin", Flag = "AutoPing",
     Callback = function(state)
         autoPingEnabled = state
         updateAutoPing()
     end
 })
 expSec5:Toggle({
-    Title = "Nearest 3 Ping", Desc = "Pings the 3 nearest enemies rapidly (requires Auto Ping)", Icon = "target", Flag = "Nearest3Ping",
+    Title = "Nearest 3 Ping", Desc = "Pings the 3 nearest enemies rapidly (overrides crosshair delay)", Icon = "target", Flag = "Nearest3Ping",
     Callback = function(state)
         nearest3PingEnabled = state
         if autoPingEnabled then updateAutoPing() end
@@ -1079,177 +1089,13 @@ expSec5:Toggle({
 -- Utility Buttons
 local expSec6 = ExploitsTab:Section({ Title = "Utility Buttons" })
 expSec6:Button({
-    Title = "Anti Kick", Desc = "Prevents kicks (leave button breaks)",
+    Title = "Anti Kick", Desc = "Executes a script that prevents you from being kicked (may break leave button)",
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end
 })
 expSec6:Button({
-    Title = "Gun Spoofer", Desc = "Equip any tool from workspace",
+    Title = "Gun Spoofer", Desc = "Equip any tool from the workspace (useful for obtaining weapons)",
     Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
 })
-
-
--- //////////////////////// VISUALS ////////////////////////
-local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
-local visSec1 = VisualsTab:Section({ Title = "ESP" })
-visSec1:Toggle({
-    Title = "Skeleton ESP", Desc = "Draws lines connecting body parts", Icon = "activity", Flag = "SkeletonESP",
-    Callback = function(v) getgenv().EspSettings.Skeleton = v end
-})
-visSec1:Toggle({
-    Title = "Tracers ESP", Desc = "Draws a line from screen bottom to enemy HRP", Icon = "trending-up", Flag = "TracersESP",
-    Callback = function(v) getgenv().EspSettings.Tracers = v end
-})
-visSec1:Toggle({
-    Title = "Name ESP", Desc = "Shows player names above head", Icon = "user", Flag = "NameESP",
-    Callback = function(v) getgenv().EspSettings.Name = v end
-})
-visSec1:Toggle({
-    Title = "Health ESP", Desc = "Shows health percentage above head", Icon = "heart", Flag = "HealthESP",
-    Callback = function(v) getgenv().EspSettings.Health = v end
-})
-visSec1:Toggle({
-    Title = "Tool ESP", Desc = "Shows current tool name near player", Icon = "wrench", Flag = "ToolESP",
-    Callback = function(v) getgenv().EspSettings.Tool = v end
-})
-visSec1:Toggle({
-    Title = "Rainbow ESP", Desc = "Cycles ESP colors smoothly", Icon = "palette", Flag = "RainbowESP",
-    Callback = function(v) getgenv().EspSettings.Rainbow = v end
-})
-
-local visSec2 = VisualsTab:Section({ Title = "Other Visuals" })
-visSec2:Toggle({
-    Title = "Player Wallhack (Chams)", Desc = "See players outlines through walls", Icon = "users", Flag = "Chams",
-    Callback = function(state)
-        if state then
-            local function ApplyChams(player)
-                if player == LocalPlayer then return end
-                player.CharacterAdded:Connect(function(char)
-                    local h = Instance.new("Highlight")
-                    h.Name = "JB_ESP"
-                    h.FillColor = Color3.fromRGB(255,0,100)
-                    h.OutlineColor = Color3.fromRGB(255,255,255)
-                    h.FillTransparency = 0.5
-                    h.Parent = char
-                end)
-                if player.Character then
-                    local h = Instance.new("Highlight")
-                    h.Name = "JB_ESP"
-                    h.FillColor = Color3.fromRGB(255,0,100)
-                    h.OutlineColor = Color3.fromRGB(255,255,255)
-                    h.FillTransparency = 0.5
-                    h.Parent = player.Character
-                end
-            end
-            for _, p in pairs(Players:GetPlayers()) do ApplyChams(p) end
-            Connections.Chams = Players.PlayerAdded:Connect(ApplyChams)
-        else
-            if Connections.Chams then Connections.Chams:Disconnect(); Connections.Chams = nil end
-            for _, p in pairs(Players:GetPlayers()) do
-                if p.Character and p.Character:FindFirstChild("JB_ESP") then
-                    p.Character.JB_ESP:Destroy()
-                end
-            end
-        end
-    end
-})
-visSec2:Toggle({
-    Title = "Fullbright", Icon = "sun", Flag = "Fullbright",
-    Callback = function(state)
-        if state then
-            Lighting.Brightness = 4
-            Lighting.Ambient = Color3.fromRGB(255,255,255)
-            Lighting.GlobalShadows = false
-        else
-            Lighting.Brightness = 2
-            Lighting.Ambient = Color3.fromRGB(130,130,130)
-            Lighting.GlobalShadows = true
-        end
-    end
-})
-
-local visSec3 = VisualsTab:Section({ Title = "FOV Color" })
-visSec3:Slider({
-    Title = "FOV Red", Step = 1, Flag = "FOVRed",
-    Value = { Min = 0, Max = 255, Default = 255 },
-    Callback = function(v)
-        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
-        fovStroke.Color = Color3.fromRGB(v,g,b)
-    end
-})
-visSec3:Slider({
-    Title = "FOV Green", Step = 1, Flag = "FOVGreen",
-    Value = { Min = 0, Max = 255, Default = 0 },
-    Callback = function(v)
-        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
-        fovStroke.Color = Color3.fromRGB(r,v,b)
-    end
-})
-visSec3:Slider({
-    Title = "FOV Blue", Step = 1, Flag = "FOVBlue",
-    Value = { Min = 0, Max = 255, Default = 100 },
-    Callback = function(v)
-        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
-        fovStroke.Color = Color3.fromRGB(r,g,v)
-    end
-})
-
--- //////////////////////// UTILITY ////////////////////////
-local UtilTab = Window:Tab({ Title = "Utility", Icon = "wrench" })
-local utilSec1 = UtilTab:Section({ Title = "Camera" })
-utilSec1:Toggle({
-    Title = "Camera FOV Override", Desc = "Override camera field of view", Icon = "eye", Flag = "CameraFOVEnabled",
-    Callback = function(state)
-        getgenv().CameraFOVEnabled = state
-        if state then
-            Camera.FieldOfView = getgenv().CameraFOVValue or 70
-            if Connections.CameraFOV then Connections.CameraFOV:Disconnect() end
-            Connections.CameraFOV = RunService.Heartbeat:Connect(function()
-                if getgenv().CameraFOVEnabled then
-                    Camera.FieldOfView = getgenv().CameraFOVValue or 70
-                end
-            end)
-        else
-            if Connections.CameraFOV then Connections.CameraFOV:Disconnect(); Connections.CameraFOV = nil end
-            Camera.FieldOfView = 70
-        end
-    end
-})
-utilSec1:Slider({
-    Title = "Camera FOV Value", Desc = "Field of view (60-150)", Step = 1, Flag = "CameraFOVValue",
-    Value = { Min = 60, Max = 150, Default = 70 },
-    Callback = function(value)
-        getgenv().CameraFOVValue = value
-        if getgenv().CameraFOVEnabled then Camera.FieldOfView = value end
-    end
-})
-
-local utilSec2 = UtilTab:Section({ Title = "Misc" })
-utilSec2:Button({
-    Title = "Teleport Upwards", Desc = "+25 studs",
-    Callback = function()
-        local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if r then r.CFrame = r.CFrame + Vector3.new(0,25,0) end
-    end
-})
-utilSec2:Button({
-    Title = "Teleport Downwards", Desc = "-15 studs",
-    Callback = function()
-        local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end
-    end
-})
-utilSec2:Button({
-    Title = "Infinite Camera Zoom", Desc = "Sets max zoom distance to 5000",
-    Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end
-})
-utilSec2:Button({
-    Title = "Respawn / Reset Character", Desc = "Kills your character",
-    Callback = function()
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-    end
-})
-
 
 -- ==================== JUMBSCARE (under Exploits) ====================
 local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
@@ -1258,7 +1104,7 @@ local jumpscareDelay = 0.1
 
 expSec7:Button({
     Title = "Jumpscare",
-    Desc = "Teleports you in front of the enemy you're looking at for a set delay, then back",
+    Desc = "Instantly teleports you in front of the enemy you're looking at (even through walls), then returns after a delay",
     Callback = function()
         local function getEnemyUnderCrosshair()
             local lp = LocalPlayer
@@ -1318,7 +1164,7 @@ expSec7:Button({
 
 local delaySlider = expSec7:Slider({
     Title = "Jumpscare Delay",
-    Desc = "Time before teleporting back (0.0 – 2.0 seconds, step 0.1)",
+    Desc = "Time in seconds before teleporting back (0.0 – 2.0, step 0.1)",
     Step = 0.1,
     Flag = "JumpscareDelay",
     Value = { Min = 0, Max = 2, Default = 0.1 },
@@ -1328,8 +1174,180 @@ local delaySlider = expSec7:Slider({
 })
 currentConfig:Register("JumpscareDelay", delaySlider)
 
+-- //////////////////////// VISUALS ////////////////////////
+local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
+local visSec1 = VisualsTab:Section({ Title = "ESP" })
+visSec1:Toggle({
+    Title = "Skeleton ESP", Desc = "Draws lines connecting enemy body parts (requires Drawing library)", Icon = "activity", Flag = "SkeletonESP",
+    Callback = function(v) getgenv().EspSettings.Skeleton = v end
+})
+visSec1:Toggle({
+    Title = "Tracers ESP", Desc = "Draws a line from the bottom of your screen to the enemy", Icon = "trending-up", Flag = "TracersESP",
+    Callback = function(v) getgenv().EspSettings.Tracers = v end
+})
+visSec1:Toggle({
+    Title = "Name ESP", Desc = "Displays player names above their head", Icon = "user", Flag = "NameESP",
+    Callback = function(v) getgenv().EspSettings.Name = v end
+})
+visSec1:Toggle({
+    Title = "Health ESP", Desc = "Shows health percentage above enemies", Icon = "heart", Flag = "HealthESP",
+    Callback = function(v) getgenv().EspSettings.Health = v end
+})
+visSec1:Toggle({
+    Title = "Tool ESP", Desc = "Shows the name of the tool the enemy is holding", Icon = "wrench", Flag = "ToolESP",
+    Callback = function(v) getgenv().EspSettings.Tool = v end
+})
+visSec1:Toggle({
+    Title = "Rainbow ESP", Desc = "Makes all ESP colors cycle through the rainbow", Icon = "palette", Flag = "RainbowESP",
+    Callback = function(v) getgenv().EspSettings.Rainbow = v end
+})
 
+-- New Section: ESP Appearance
+local visSec4 = VisualsTab:Section({ Title = "ESP Appearance" })
+visSec4:Slider({
+    Title = "Esp Thickness",
+    Desc = "Thickness of ESP lines (skeleton and tracers) – 1 to 5",
+    Step = 0.1,
+    Flag = "ESPLineThickness",
+    Value = { Min = 0, Max = 5, Default = 2 },
+    Callback = function(v)
+        getgenv().EspSettings.LineThickness = v
+    end
+})
 
+local visSec2 = VisualsTab:Section({ Title = "Other Visuals" })
+visSec2:Toggle({
+    Title = "Player Wallhack (Chams)", Desc = "Highlights enemy players with a colored outline through walls", Icon = "users", Flag = "Chams",
+    Callback = function(state)
+        if state then
+            local function ApplyChams(player)
+                if player == LocalPlayer then return end
+                player.CharacterAdded:Connect(function(char)
+                    local h = Instance.new("Highlight")
+                    h.Name = "JB_ESP"
+                    h.FillColor = Color3.fromRGB(255,0,100)
+                    h.OutlineColor = Color3.fromRGB(255,255,255)
+                    h.FillTransparency = 0.5
+                    h.Parent = char
+                end)
+                if player.Character then
+                    local h = Instance.new("Highlight")
+                    h.Name = "JB_ESP"
+                    h.FillColor = Color3.fromRGB(255,0,100)
+                    h.OutlineColor = Color3.fromRGB(255,255,255)
+                    h.FillTransparency = 0.5
+                    h.Parent = player.Character
+                end
+            end
+            for _, p in pairs(Players:GetPlayers()) do ApplyChams(p) end
+            Connections.Chams = Players.PlayerAdded:Connect(ApplyChams)
+        else
+            if Connections.Chams then Connections.Chams:Disconnect(); Connections.Chams = nil end
+            for _, p in pairs(Players:GetPlayers()) do
+                if p.Character and p.Character:FindFirstChild("JB_ESP") then
+                    p.Character.JB_ESP:Destroy()
+                end
+            end
+        end
+    end
+})
+visSec2:Toggle({
+    Title = "Fullbright", Desc = "Makes the game world fully bright (no shadows)", Icon = "sun", Flag = "Fullbright",
+    Callback = function(state)
+        if state then
+            Lighting.Brightness = 4
+            Lighting.Ambient = Color3.fromRGB(255,255,255)
+            Lighting.GlobalShadows = false
+        else
+            Lighting.Brightness = 2
+            Lighting.Ambient = Color3.fromRGB(130,130,130)
+            Lighting.GlobalShadows = true
+        end
+    end
+})
+
+local visSec3 = VisualsTab:Section({ Title = "FOV Color" })
+visSec3:Slider({
+    Title = "FOV Red", Step = 1, Flag = "FOVRed",
+    Value = { Min = 0, Max = 255, Default = 255 },
+    Callback = function(v)
+        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
+        fovStroke.Color = Color3.fromRGB(v,g,b)
+    end
+})
+visSec3:Slider({
+    Title = "FOV Green", Step = 1, Flag = "FOVGreen",
+    Value = { Min = 0, Max = 255, Default = 0 },
+    Callback = function(v)
+        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
+        fovStroke.Color = Color3.fromRGB(r,v,b)
+    end
+})
+visSec3:Slider({
+    Title = "FOV Blue", Step = 1, Flag = "FOVBlue",
+    Value = { Min = 0, Max = 255, Default = 100 },
+    Callback = function(v)
+        local r,g,b = fovStroke.Color.R*255, fovStroke.Color.G*255, fovStroke.Color.B*255
+        fovStroke.Color = Color3.fromRGB(r,g,v)
+    end
+})
+
+-- //////////////////////// UTILITY ////////////////////////
+local UtilTab = Window:Tab({ Title = "Utility", Icon = "wrench" })
+local utilSec1 = UtilTab:Section({ Title = "Camera" })
+utilSec1:Toggle({
+    Title = "Camera FOV Override", Desc = "Override your camera's field of view", Icon = "eye", Flag = "CameraFOVEnabled",
+    Callback = function(state)
+        getgenv().CameraFOVEnabled = state
+        if state then
+            Camera.FieldOfView = getgenv().CameraFOVValue or 70
+            if Connections.CameraFOV then Connections.CameraFOV:Disconnect() end
+            Connections.CameraFOV = RunService.Heartbeat:Connect(function()
+                if getgenv().CameraFOVEnabled then
+                    Camera.FieldOfView = getgenv().CameraFOVValue or 70
+                end
+            end)
+        else
+            if Connections.CameraFOV then Connections.CameraFOV:Disconnect(); Connections.CameraFOV = nil end
+            Camera.FieldOfView = 70
+        end
+    end
+})
+utilSec1:Slider({
+    Title = "Camera FOV Value", Desc = "Field of view in degrees (60-150)", Step = 1, Flag = "CameraFOVValue",
+    Value = { Min = 60, Max = 150, Default = 70 },
+    Callback = function(value)
+        getgenv().CameraFOVValue = value
+        if getgenv().CameraFOVEnabled then Camera.FieldOfView = value end
+    end
+})
+
+local utilSec2 = UtilTab:Section({ Title = "Misc" })
+utilSec2:Button({
+    Title = "Teleport Upwards", Desc = "Moves you 25 studs up",
+    Callback = function()
+        local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if r then r.CFrame = r.CFrame + Vector3.new(0,25,0) end
+    end
+})
+utilSec2:Button({
+    Title = "Teleport Downwards", Desc = "Moves you 15 studs down",
+    Callback = function()
+        local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end
+    end
+})
+utilSec2:Button({
+    Title = "Infinite Camera Zoom", Desc = "Sets your maximum zoom distance to 5000",
+    Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end
+})
+utilSec2:Button({
+    Title = "Respawn / Reset Character", Desc = "Kills your current character (forces respawn)",
+    Callback = function()
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end
+})
 
 -- //////////////////////// SETTINGS ////////////////////////
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
@@ -1352,19 +1370,19 @@ for _, t in ipairs(customThemes) do
 end
 setSec1:Dropdown({
     Title = "Select Interface Theme",
-    Desc = "Custom themes",
+    Desc = "Choose a UI color scheme (saves automatically)",
     Values = themeDropdownValues
 })
 
 local setSec2 = SettingsTab:Section({ Title = "Config Management" })
 setSec2:Button({
     Title = "Save Config",
-    Desc = "Saves current settings to DefaultConfig.json",
+    Desc = "Save all current settings to DefaultConfig.json",
     Callback = function() currentConfig:Save() end
 })
 setSec2:Button({
     Title = "Load Config",
-    Desc = "Loads settings from DefaultConfig.json",
+    Desc = "Load settings from DefaultConfig.json (overwrites current)",
     Callback = function() currentConfig:Load() end
 })
 
