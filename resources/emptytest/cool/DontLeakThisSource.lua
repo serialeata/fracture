@@ -1,5 +1,5 @@
 -- ============================================================
--- BR Hub | JailBird Edition – v2.9.3 (Full Features, No Paragraph)
+-- BR Hub | JailBird Edition – v2.9.3 (ConfigManager, All Features)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -46,6 +46,9 @@ getgenv().CameraFOVEnabled = false
 getgenv().CameraFOVValue = 70
 getgenv().RandomHighPingEnabled = false
 getgenv().SpinAroundEnabled = false
+getgenv().BehindOnly = false
+getgenv().RandomPosition = false
+getgenv().JumpscareDelay = 0.1
 
 local Connections = {
     Spin = nil, Noclip = nil, Backstab = nil, InfiniteAmmo = nil,
@@ -91,19 +94,17 @@ local ConfigManager = Window.ConfigManager
 local currentConfig = ConfigManager:CreateConfig("DefaultConfig")
 
 -- ============================================================
--- Auto-Load Theme from Config
+-- Auto-Load Theme from file
 -- ============================================================
-local function GetSavedTheme()
-    local success, saved = pcall(function()
-        return currentConfig:Get("SavedTheme")
-    end)
-    if success and saved and saved ~= "" then
-        return saved
+local function ReadThemeFile()
+    if isfile and isfolder and readfile then
+        if isfolder("BR_Hub") and isfile("BR_Hub/theme.txt") then
+            return readfile("BR_Hub/theme.txt")
+        end
     end
     return nil
 end
-
-local savedTheme = GetSavedTheme()
+local savedTheme = ReadThemeFile()
 if savedTheme then
     pcall(function() WindUI:SetTheme(savedTheme) end)
 else
@@ -433,33 +434,21 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ============================================================
--- TABS (All features, no Paragraph)
+-- TABS (All features, ConfigManager.Register on every element)
 -- ============================================================
 
 -- //////////////////////// INFO ////////////////////////
 local InfoTab = Window:Tab({ Title = "Info", Icon = "home" })
-InfoTab:Button({
-    Title = "Welcome to BR Hub",
-    Desc = "Current Version: v2.9.3",
-    Callback = function() end
-})
+InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v2.9.3", Callback = function() end })
 InfoTab:Divider()
-InfoTab:Button({
-    Title = "Changelog",
-    Desc = "✓ WindUI ConfigManager\n✓ Auto-Theme\n✓ Box ESP (fixed size)\n✓ ESP Color Pickers\n✓ Auto Kill (raycast)\n✓ FOV Colorpicker\n✓ All previous features",
-    Callback = function() end
-})
+InfoTab:Button({ Title = "Changelog", Desc = "✓ WindUI ConfigManager\n✓ Auto-Theme\n✓ Box ESP (fixed size)\n✓ ESP Color Pickers\n✓ Auto Kill (raycast)\n✓ FOV Colorpicker\n✓ All previous features", Callback = function() end })
 InfoTab:Divider()
-InfoTab:Button({
-    Title = "Script Credits",
-    Desc = "Lead Developer: goth\nUI Framework: WindUI",
-    Callback = function() end
-})
+InfoTab:Button({ Title = "Script Credits", Desc = "Lead Developer: goth\nUI Framework: WindUI", Callback = function() end })
 
 -- //////////////////////// MOVEMENT ////////////////////////
 local MoveTab = Window:Tab({ Title = "Movement", Icon = "user" })
 local movSec1 = MoveTab:Section({ Title = "Speed Settings" })
-movSec1:Slider({
+local walkSpeedSlider = movSec1:Slider({
     Title = "WalkSpeed", Desc = "Movement speed (max 50)", Step = 1, Flag = "WalkSpeed",
     Value = { Min = 16, Max = 50, Default = 16 },
     Callback = function(value)
@@ -468,14 +457,17 @@ movSec1:Slider({
         if hum then hum.WalkSpeed = value end
     end
 })
-movSec1:Slider({
+currentConfig:Register("WalkSpeed", walkSpeedSlider)
+
+local tpWalkSpeedSlider = movSec1:Slider({
     Title = "TP Walk Speed", Desc = "Multiplier for TP Walk (0-20)", Step = 1, Flag = "TPWalkSpeed",
     Value = { Min = 0, Max = 20, Default = 0 },
     Callback = function(value) getgenv().TPWalkSpeed = value end
 })
+currentConfig:Register("TPWalkSpeed", tpWalkSpeedSlider)
 
 local movSec2 = MoveTab:Section({ Title = "Movement Options" })
-movSec2:Toggle({
+local infJumpToggle = movSec2:Toggle({
     Title = "Infinite Jump", Desc = "Jump continuously", Icon = "chevrons-up", Flag = "InfiniteJump",
     Callback = function(state)
         if state then
@@ -490,24 +482,24 @@ movSec2:Toggle({
         end
     end
 })
-movSec2:Toggle({
+currentConfig:Register("InfiniteJump", infJumpToggle)
+
+local noclipToggle = movSec2:Toggle({
     Title = "Noclip", Desc = "Walk through walls", Icon = "ghost", Flag = "Noclip",
     Callback = function(state)
         if state then
             Connections.Noclip = RunService.Stepped:Connect(function()
                 local char = LocalPlayer.Character
-                if char then
-                    for _, p in pairs(char:GetDescendants()) do
-                        if p:IsA("BasePart") then p.CanCollide = false end
-                    end
-                end
+                if char then for _, p in pairs(char:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
             end)
         else
             if Connections.Noclip then Connections.Noclip:Disconnect(); Connections.Noclip = nil end
         end
     end
 })
-movSec2:Toggle({
+currentConfig:Register("Noclip", noclipToggle)
+
+local tpWalkToggle = movSec2:Toggle({
     Title = "TP Walk", Desc = "Teleport forward", Icon = "zap", Flag = "TPWalk",
     Callback = function(state)
         if state then
@@ -532,91 +524,101 @@ movSec2:Toggle({
         end
     end
 })
+currentConfig:Register("TPWalk", tpWalkToggle)
 
 -- //////////////////////// AIM ////////////////////////
 local AimTab = Window:Tab({ Title = "Aim", Icon = "crosshair" })
 local aimSec1 = AimTab:Section({ Title = "Aimbot Settings" })
-aimSec1:Toggle({
+local aimbotToggle = aimSec1:Toggle({
     Title = "Aimbot (Camera Lock)", Desc = "Locks camera onto nearest enemy", Icon = "target", Flag = "Aimbot",
     Callback = function(v) getgenv().AimbotSettings.Enabled = v end
 })
-aimSec1:Toggle({
+currentConfig:Register("Aimbot", aimbotToggle)
+
+local teamCheckToggle = aimSec1:Toggle({
     Title = "Team Check", Desc = "Ignore teammates", Icon = "users", Flag = "TeamCheck",
     Callback = function(v) getgenv().AimbotSettings.TeamCheck = v end
 })
-aimSec1:Toggle({
+currentConfig:Register("TeamCheck", teamCheckToggle)
+
+local visibleOnlyToggle = aimSec1:Toggle({
     Title = "Visible Only", Desc = "Only lock if visible", Icon = "eye", Flag = "VisibleOnly",
     Callback = function(v) getgenv().AimbotSettings.VisibleOnly = v end
 })
-aimSec1:Slider({
+currentConfig:Register("VisibleOnly", visibleOnlyToggle)
+
+local smoothnessSlider = aimSec1:Slider({
     Title = "Smoothness", Desc = "Lower = faster (1=instant)", Step = 1, Flag = "Smoothness",
     Value = { Min = 1, Max = 10, Default = 1 },
     Callback = function(v) getgenv().AimbotSettings.Smoothness = v end
 })
+currentConfig:Register("Smoothness", smoothnessSlider)
 
 local aimSec2 = AimTab:Section({ Title = "FOV Circle" })
-aimSec2:Toggle({
+local showFOVToggle = aimSec2:Toggle({
     Title = "Show FOV Circle", Desc = "Show aimbot FOV", Icon = "circle", Flag = "ShowFOV",
     Callback = function(v)
-        getgenv().AimbotSettings.ShowFOV = v
-        fovFrame.Visible = v
+        getgenv().AimbotSettings.ShowFOV = v; fovFrame.Visible = v
     end
 })
-aimSec2:Slider({
+currentConfig:Register("ShowFOV", showFOVToggle)
+
+local fovRadiusSlider = aimSec2:Slider({
     Title = "FOV Radius", Desc = "Radius in pixels", Step = 10, Flag = "FOVRadius",
     Value = { Min = 30, Max = 600, Default = 100 },
-    Callback = function(v)
-        getgenv().AimbotSettings.FOV = v
-        UpdateFOVCircle(v)
-    end
+    Callback = function(v) getgenv().AimbotSettings.FOV = v; UpdateFOVCircle(v) end
 })
-aimSec2:Slider({
+currentConfig:Register("FOVRadius", fovRadiusSlider)
+
+local fovThicknessSlider = aimSec2:Slider({
     Title = "FOV Thickness", Desc = "Outline thickness", Step = 0.5, Flag = "FOVThickness",
     Value = { Min = 0.5, Max = 5, Default = 1.5 },
     Callback = function(v) fovStroke.Thickness = v end
 })
-aimSec2:Slider({
+currentConfig:Register("FOVThickness", fovThicknessSlider)
+
+local fovTransparencySlider = aimSec2:Slider({
     Title = "FOV Transparency", Desc = "0=solid, 1=invisible", Step = 0.05, Flag = "FOVTransparency",
     Value = { Min = 0, Max = 1, Default = 0.8 },
-    Callback = function(v) fovStroke.Transparency = v end
+    Callback = function(v) fovStroke.Transparency = v; getgenv().AimbotSettings.FOVTransparency = v end
 })
-aimSec2:Toggle({
+currentConfig:Register("FOVTransparency", fovTransparencySlider)
+
+local rainbowFOVToggle = aimSec2:Toggle({
     Title = "Rainbow FOV", Desc = "Cycle colors", Icon = "palette", Flag = "RainbowFOV",
     Callback = function(v)
         getgenv().AimbotSettings.RainbowFOV = v
-        if not v then
-            fovStroke.Color = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255, 0, 100)
-        end
+        if not v then fovStroke.Color = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255,0,100) end
     end
 })
-aimSec2:Colorpicker({
-    Title = "FOV Color",
-    Desc = "Pick a custom color",
-    Icon = "droplet",
-    Flag = "FOVColor",
-    Value = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255, 0, 100),
-    Callback = function(color)
-        getgenv().AimbotSettings.FOVColor = color
-        if not getgenv().AimbotSettings.RainbowFOV then
-            fovStroke.Color = color
-        end
-    end
+currentConfig:Register("RainbowFOV", rainbowFOVToggle)
+
+local fovColorpicker = aimSec2:Colorpicker({
+    Title = "FOV Color", Desc = "Pick a custom color", Icon = "droplet", Flag = "FOVColor",
+    Value = getgenv().AimbotSettings.FOVColor or Color3.fromRGB(255,0,100),
+    Callback = function(color) getgenv().AimbotSettings.FOVColor = color; if not getgenv().AimbotSettings.RainbowFOV then fovStroke.Color = color end end
 })
+currentConfig:Register("FOVColor", fovColorpicker)
 
 local aimSec3 = AimTab:Section({ Title = "Hitbox Expander" })
-aimSec3:Toggle({
+local hitboxToggle = aimSec3:Toggle({
     Title = "Head Hitbox Size Changer", Desc = "Enlarge head hitbox", Icon = "maximize-2", Flag = "HitboxEnabled",
     Callback = function(v) getgenv().HitboxSettings.Enabled = v end
 })
-aimSec3:Slider({
+currentConfig:Register("HitboxEnabled", hitboxToggle)
+
+local hitboxSizeSlider = aimSec3:Slider({
     Title = "Hitbox Size", Desc = "Size (2-15)", Step = 1, Flag = "HitboxSize",
     Value = { Min = 2, Max = 15, Default = 6 },
     Callback = function(v) getgenv().HitboxSettings.Size = v end
 })
-aimSec3:Toggle({
+currentConfig:Register("HitboxSize", hitboxSizeSlider)
+
+local hitboxWallCheckToggle = aimSec3:Toggle({
     Title = "Hitbox Wall Check", Desc = "Only expand if not behind wall", Icon = "eye-off", Flag = "HitboxWallCheck",
     Callback = function(v) getgenv().HitboxSettings.WallCheck = v end
 })
+currentConfig:Register("HitboxWallCheck", hitboxWallCheckToggle)
 
 -- //////////////////////// ANTI AIM ////////////////////////
 local AntiAimTab = Window:Tab({ Title = "Anti Aim", Icon = "shield-off" })
@@ -644,35 +646,34 @@ local function StartSpinBot()
         end
     end)
 end
-
-aaSec1:Toggle({
+local spinBotToggle = aaSec1:Toggle({
     Title = "Spin Bot", Desc = "Continuously rotate", Icon = "refresh-cw", Flag = "SpinBotEnabled",
     Callback = function(state)
         getgenv().SpinBotSettings.Enabled = state
-        if state then StartSpinBot()
-        else
+        if state then StartSpinBot() else
             if Connections.Spin then Connections.Spin:Disconnect(); Connections.Spin = nil end
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum.AutoRotate = true end
         end
     end
 })
-aaSec1:Dropdown({
+currentConfig:Register("SpinBotEnabled", spinBotToggle)
+
+local spinModeDropdown = aaSec1:Dropdown({
     Title = "SpinBot Mode", Desc = "Select rotation style", Flag = "SpinBotMode",
     Values = {
         { Title = "Spin", Desc = "Fast yaw spin", Icon = "refresh-cw", Callback = function()
-            getgenv().SpinBotSettings.Mode = "Spin"
-            if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
+            getgenv().SpinBotSettings.Mode = "Spin"; if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
         end },
         { Title = "MoonWalk", Desc = "Face opposite camera", Icon = "arrow-left-right", Callback = function()
-            getgenv().SpinBotSettings.Mode = "MoonWalk"
-            if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
+            getgenv().SpinBotSettings.Mode = "MoonWalk"; if getgenv().SpinBotSettings.Enabled then StartSpinBot() end
         end }
     }
 })
+currentConfig:Register("SpinBotMode", spinModeDropdown)
 
 local aaSec2 = AntiAimTab:Section({ Title = "Lean Spammer" })
-aaSec2:Toggle({
+local leanSpammerToggle = aaSec2:Toggle({
     Title = "Lean Spammer", Desc = "Random lean stances", Icon = "arrow-left-right", Flag = "LeanSpammer",
     Callback = function(state)
         if state then
@@ -680,16 +681,16 @@ aaSec2:Toggle({
             Connections.LeanSpammer = RunService.Heartbeat:Connect(function()
                 local stanceRemote = ReplicatedStorage:FindFirstChild("GameEvents")
                 if stanceRemote then stanceRemote = stanceRemote:FindFirstChild("Stance") end
-                if stanceRemote then
-                    stanceRemote:FireServer("Standing", math.random(-1, 1))
-                end
+                if stanceRemote then stanceRemote:FireServer("Standing", math.random(-1,1)) end
             end)
         else
             if Connections.LeanSpammer then Connections.LeanSpammer:Disconnect(); Connections.LeanSpammer = nil end
         end
     end
 })
-aaSec2:Slider({
+currentConfig:Register("LeanSpammer", leanSpammerToggle)
+
+local leanSpeedSlider = aaSec2:Slider({
     Title = "Lean Speed", Desc = "How frequent (1-20)", Step = 1, Flag = "LeanSpammerSpeed",
     Value = { Min = 1, Max = 20, Default = 5 },
     Callback = function(value)
@@ -699,21 +700,19 @@ aaSec2:Slider({
             Connections.LeanSpammer = RunService.Heartbeat:Connect(function()
                 local stanceRemote = ReplicatedStorage:FindFirstChild("GameEvents")
                 if stanceRemote then stanceRemote = stanceRemote:FindFirstChild("Stance") end
-                if stanceRemote then
-                    stanceRemote:FireServer("Standing", math.random(-1, 1))
-                end
-                task.wait(1 / value)
+                if stanceRemote then stanceRemote:FireServer("Standing", math.random(-1,1)) end
+                task.wait(1/value)
             end)
         end
     end
 })
+currentConfig:Register("LeanSpammerSpeed", leanSpeedSlider)
 
 -- //////////////////////// EXPLOITS ////////////////////////
 local ExploitsTab = Window:Tab({ Title = "Exploits", Icon = "zap" })
 
--- Ping Changer
 local expSec1 = ExploitsTab:Section({ Title = "Ping Manipulation" })
-expSec1:Toggle({
+local pingChangerToggle = expSec1:Toggle({
     Title = "Ping Changer", Desc = "Fake your ping", Icon = "wifi", Flag = "PingChanger",
     Callback = function(state)
         if state then
@@ -731,15 +730,20 @@ expSec1:Toggle({
         end
     end
 })
-expSec1:Toggle({
+currentConfig:Register("PingChanger", pingChangerToggle)
+
+local randomHighPingToggle = expSec1:Toggle({
     Title = "Random High Ping", Desc = "Random 500-1000", Icon = "shuffle", Flag = "RandomHighPing",
     Callback = function(state) getgenv().RandomHighPingEnabled = state end
 })
-expSec1:Slider({
+currentConfig:Register("RandomHighPing", randomHighPingToggle)
+
+local pingChangerSlider = expSec1:Slider({
     Title = "Ping Value", Desc = "Manual value (0-1000)", Step = 1, Flag = "PingChangerValue",
     Value = { Min = 0, Max = 1000, Default = 0 },
     Callback = function(value) getgenv().PingChangerValue = value end
 })
+currentConfig:Register("PingChangerValue", pingChangerSlider)
 
 -- Auto Kill
 local expSec2 = ExploitsTab:Section({ Title = "Auto Kill" })
@@ -789,7 +793,7 @@ local function AutoKillV1Loop()
         end
     end
 end
-expSec2:Toggle({
+local autoKillV1Toggle = expSec2:Toggle({
     Title = "Auto Kill V1 [BETA]", Desc = "Raycast to head", Icon = "target", Flag = "AutoKillV1",
     Callback = function(state)
         if state then
@@ -802,6 +806,7 @@ expSec2:Toggle({
         end
     end
 })
+currentConfig:Register("AutoKillV1", autoKillV1Toggle)
 
 local autoKillV2Connection = nil
 local autoKillV2Running = false
@@ -833,12 +838,8 @@ local function AutoKillV2Loop()
                 local hitPoint = result.Position
                 local hitDir = (hitPoint - origin).Unit
                 remote:FireServer(plr, 200, "Bayonet", {
-                    Normal = -hitDir,
-                    Direction = hitDir,
-                    StartPosition = origin,
-                    Instance = result.Instance,
-                    Material = Enum.Material.Plastic,
-                    EndPosition = hitPoint
+                    Normal = -hitDir, Direction = hitDir, StartPosition = origin,
+                    Instance = result.Instance, Material = Enum.Material.Plastic, EndPosition = hitPoint
                 })
                 autoKillV2Cooldown = now
                 return
@@ -856,12 +857,8 @@ local function AutoKillV2Loop()
                     local hitPoint = result.Position
                     local hitDir = (hitPoint - origin).Unit
                     remote:FireServer(plr, 200, "Bayonet", {
-                        Normal = -hitDir,
-                        Direction = hitDir,
-                        StartPosition = origin,
-                        Instance = result.Instance,
-                        Material = Enum.Material.Plastic,
-                        EndPosition = hitPoint
+                        Normal = -hitDir, Direction = hitDir, StartPosition = origin,
+                        Instance = result.Instance, Material = Enum.Material.Plastic, EndPosition = hitPoint
                     })
                     autoKillV2Cooldown = now
                     return
@@ -870,7 +867,7 @@ local function AutoKillV2Loop()
         end
     end
 end
-expSec2:Toggle({
+local autoKillV2Toggle = expSec2:Toggle({
     Title = "Auto Kill V2 [BETA]", Desc = "Raycast to all parts", Icon = "crosshair", Flag = "AutoKillV2",
     Callback = function(state)
         if state then
@@ -883,15 +880,15 @@ expSec2:Toggle({
         end
     end
 })
+currentConfig:Register("AutoKillV2", autoKillV2Toggle)
 
 -- Teleport & Spin
 local expSec3 = ExploitsTab:Section({ Title = "Teleport & Spin" })
-expSec3:Toggle({
+local autoTeleportToggle = expSec3:Toggle({
     Title = "Auto Teleport To Enemies", Desc = "Teleport above & behind", Icon = "swords", Flag = "KillAll",
     Callback = function(state)
         if state then
-            local TargetIndex = 1
-            local LastTargetTime = 0
+            local TargetIndex = 1; local LastTargetTime = 0
             Connections.Backstab = RunService.Heartbeat:Connect(function()
                 if not getgenv().BackstabActive then return end
                 local localChar = LocalPlayer.Character
@@ -934,7 +931,9 @@ expSec3:Toggle({
         end
     end
 })
-expSec3:Toggle({
+currentConfig:Register("KillAll", autoTeleportToggle)
+
+local spinAroundToggle = expSec3:Toggle({
     Title = "Spin Around Target", Desc = "Orbit enemy (needs Auto Teleport)", Icon = "rotate-cw", Flag = "SpinAround",
     Callback = function(state)
         getgenv().SpinAroundEnabled = state
@@ -946,9 +945,7 @@ expSec3:Toggle({
                 if not localChar then return end
                 local lRoot = localChar:FindFirstChild("HumanoidRootPart")
                 if not lRoot then return end
-                local targetChar = nil
-                local targetHRP = nil
-                local shortestDist = math.huge
+                local targetChar = nil; local targetHRP = nil; local shortestDist = math.huge
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= LocalPlayer and plr.Character then
                         if LocalPlayer.Team and plr.Team == LocalPlayer.Team then continue end
@@ -957,9 +954,7 @@ expSec3:Toggle({
                         if eHum and eHRP and eHum.Health > 0 then
                             local dist = (eHRP.Position - lRoot.Position).Magnitude
                             if dist < shortestDist then
-                                shortestDist = dist
-                                targetChar = plr.Character
-                                targetHRP = eHRP
+                                shortestDist = dist; targetChar = plr.Character; targetHRP = eHRP
                             end
                         end
                     end
@@ -975,10 +970,23 @@ expSec3:Toggle({
         end
     end
 })
+currentConfig:Register("SpinAround", spinAroundToggle)
+
+local behindOnlyToggle = expSec3:Toggle({
+    Title = "Behind Only", Desc = "Teleport directly behind enemy", Icon = "arrow-left-right", Flag = "BehindOnly",
+    Callback = function(state) getgenv().BehindOnly = state; if state then getgenv().RandomPosition = false; randomPositionToggle:SetValue(false) end end
+})
+currentConfig:Register("BehindOnly", behindOnlyToggle)
+
+local randomPositionToggle = expSec3:Toggle({
+    Title = "Random Position", Desc = "Teleport to random position", Icon = "shuffle", Flag = "RandomPosition",
+    Callback = function(state) getgenv().RandomPosition = state; if state then getgenv().BehindOnly = false; behindOnlyToggle:SetValue(false) end end
+})
+currentConfig:Register("RandomPosition", randomPositionToggle)
 
 -- Weapon & Build
 local expSec4 = ExploitsTab:Section({ Title = "Weapon & Build" })
-expSec4:Toggle({
+local noReloadToggle = expSec4:Toggle({
     Title = "No Reload", Desc = "Spam reload remote", Icon = "repeat", Flag = "InfiniteAmmo",
     Callback = function(state)
         if state then
@@ -992,6 +1000,7 @@ expSec4:Toggle({
         end
     end
 })
+currentConfig:Register("InfiniteAmmo", noReloadToggle)
 
 local instaBarricadeEnabled = false
 local instaBarricadeConnection = nil
@@ -1021,13 +1030,11 @@ local function applyInstaBarricade()
         table.clear(originalHoldDurations)
     end
 end
-expSec4:Toggle({
+local instaBarricadeToggle = expSec4:Toggle({
     Title = "Insta Barricade", Desc = "Instant build", Icon = "zap", Flag = "InstaBarricade",
-    Callback = function(state)
-        instaBarricadeEnabled = state
-        applyInstaBarricade()
-    end
+    Callback = function(state) instaBarricadeEnabled = state; applyInstaBarricade() end
 })
+currentConfig:Register("InstaBarricade", instaBarricadeToggle)
 
 local autoBarricadeEnabled = false
 local autoBarricadeConnection = nil
@@ -1036,22 +1043,15 @@ local function startAutoBarricade()
     autoBarricadeConnection = RunService.Heartbeat:Connect(function()
         if not autoBarricadeEnabled then return end
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") then
-                pcall(function() obj:InputHoldBegin(); obj:InputHoldEnd() end)
-            end
+            if obj:IsA("ProximityPrompt") then pcall(function() obj:InputHoldBegin(); obj:InputHoldEnd() end) end
         end
     end)
 end
-expSec4:Toggle({
+local autoBarricadeToggle = expSec4:Toggle({
     Title = "Auto Barricade", Desc = "Auto-build prompts", Icon = "refresh-cw", Flag = "AutoBarricade",
-    Callback = function(state)
-        autoBarricadeEnabled = state
-        if state then startAutoBarricade()
-        else
-            if autoBarricadeConnection then autoBarricadeConnection:Disconnect(); autoBarricadeConnection = nil end
-        end
-    end
+    Callback = function(state) autoBarricadeEnabled = state; if state then startAutoBarricade() else if autoBarricadeConnection then autoBarricadeConnection:Disconnect(); autoBarricadeConnection = nil end end end
 })
+currentConfig:Register("AutoBarricade", autoBarricadeToggle)
 
 -- Ping Spam
 local expSec5 = ExploitsTab:Section({ Title = "Ping Spam" })
@@ -1061,7 +1061,7 @@ local lastPingTime = 0
 local function firePing(targetPos)
     local pingRemote = ReplicatedStorage:FindFirstChild("GameEvents")
     if pingRemote then pingRemote = pingRemote:FindFirstChild("PingLocation") end
-    if pingRemote then pingRemote:FireServer(targetPos, "Part", Vector3.new(0, 1, 0)) end
+    if pingRemote then pingRemote:FireServer(targetPos, "Part", Vector3.new(0,1,0)) end
 end
 local function updateAutoPing()
     if Connections.AutoPing then Connections.AutoPing:Disconnect(); Connections.AutoPing = nil end
@@ -1070,7 +1070,6 @@ local function updateAutoPing()
         if not autoPingEnabled then return end
         local localPlayer = Players.LocalPlayer
         if not localPlayer.Character then return end
-
         if nearest3PingEnabled then
             local enemies = {}
             local myTeam = localPlayer.Team
@@ -1103,8 +1102,7 @@ local function updateAutoPing()
                 if onScreen then
                     local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
                     if dist < closestDist then
-                        closestDist = dist
-                        closestPos = hrp.Position
+                        closestDist = dist; closestPos = hrp.Position
                     end
                 end
             end
@@ -1112,45 +1110,33 @@ local function updateAutoPing()
         end
     end)
 end
-expSec5:Toggle({
+local autoPingToggle = expSec5:Toggle({
     Title = "Auto Ping", Desc = "Ping under crosshair", Icon = "map-pin", Flag = "AutoPing",
-    Callback = function(state)
-        autoPingEnabled = state
-        updateAutoPing()
-    end
+    Callback = function(state) autoPingEnabled = state; updateAutoPing() end
 })
-expSec5:Toggle({
+currentConfig:Register("AutoPing", autoPingToggle)
+
+local nearest3PingToggle = expSec5:Toggle({
     Title = "Nearest 3 Ping", Desc = "Ping 3 nearest", Icon = "target", Flag = "Nearest3Ping",
-    Callback = function(state)
-        nearest3PingEnabled = state
-        if autoPingEnabled then updateAutoPing() end
-    end
+    Callback = function(state) nearest3PingEnabled = state; if autoPingEnabled then updateAutoPing() end end
 })
+currentConfig:Register("Nearest3Ping", nearest3PingToggle)
 
 -- Utility Buttons
 local expSec6 = ExploitsTab:Section({ Title = "Utility Buttons" })
-expSec6:Button({
-    Title = "Anti Kick", Desc = "Prevent kicks",
-    Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end
-})
-expSec6:Button({
-    Title = "Gun Spoofer", Desc = "Equip any tool",
-    Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end
-})
+expSec6:Button({ Title = "Anti Kick", Desc = "Prevent kicks", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end })
+expSec6:Button({ Title = "Gun Spoofer", Desc = "Equip any tool", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end })
 
 -- Jumpscare
 local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
 local jumpscareDelay = 0.1
 expSec7:Button({
-    Title = "Jumpscare",
-    Desc = "Teleport to enemy you're looking at, then back",
+    Title = "Jumpscare", Desc = "Teleport to enemy you're looking at, then back",
     Callback = function()
         local function getEnemyUnderCrosshair()
-            local lp = LocalPlayer
-            local cam = Camera
-            local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
-            local closest = nil
-            local closestDist = 150
+            local lp = LocalPlayer; local cam = Camera
+            local screenCenter = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+            local closest = nil; local closestDist = 150
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr == lp then continue end
                 if lp.Team and plr.Team and plr.Team == lp.Team then continue end
@@ -1184,95 +1170,93 @@ expSec7:Button({
         newPos = Vector3.new(newPos.X, enemyCF.Position.Y + 1, newPos.Z)
         lRoot.CFrame = CFrame.new(newPos, enemyHead.Position)
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemyHead.Position)
-        task.wait(jumpscareDelay)
+        task.wait(getgenv().JumpscareDelay or 0.1)
         lRoot.CFrame = originalCF
         Camera.CFrame = originalCamCF
     end
 })
-expSec7:Slider({
+local jumpscareDelaySlider = expSec7:Slider({
     Title = "Jumpscare Delay", Desc = "Time before return (0-2s)", Step = 0.1, Flag = "JumpscareDelay",
     Value = { Min = 0, Max = 2, Default = 0.1 },
-    Callback = function(value) jumpscareDelay = value end
+    Callback = function(value) getgenv().JumpscareDelay = value end
 })
+currentConfig:Register("JumpscareDelay", jumpscareDelaySlider)
 
 -- //////////////////////// VISUALS ////////////////////////
 local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
 local visSec1 = VisualsTab:Section({ Title = "ESP" })
-visSec1:Toggle({
+local skeletonToggle = visSec1:Toggle({
     Title = "Skeleton ESP", Desc = "Body lines", Icon = "activity", Flag = "SkeletonESP",
     Callback = function(v) getgenv().EspSettings.Skeleton = v end
 })
-visSec1:Toggle({
+currentConfig:Register("SkeletonESP", skeletonToggle)
+
+local tracersToggle = visSec1:Toggle({
     Title = "Tracers ESP", Desc = "Line from bottom", Icon = "trending-up", Flag = "TracersESP",
     Callback = function(v) getgenv().EspSettings.Tracers = v end
 })
-visSec1:Toggle({
+currentConfig:Register("TracersESP", tracersToggle)
+
+local nameEspToggle = visSec1:Toggle({
     Title = "Name ESP", Desc = "Player name", Icon = "user", Flag = "NameESP",
     Callback = function(v) getgenv().EspSettings.Name = v end
 })
-visSec1:Toggle({
+currentConfig:Register("NameESP", nameEspToggle)
+
+local healthEspToggle = visSec1:Toggle({
     Title = "Health ESP", Desc = "Health %", Icon = "heart", Flag = "HealthESP",
     Callback = function(v) getgenv().EspSettings.Health = v end
 })
-visSec1:Toggle({
+currentConfig:Register("HealthESP", healthEspToggle)
+
+local toolEspToggle = visSec1:Toggle({
     Title = "Tool ESP", Desc = "Tool name", Icon = "wrench", Flag = "ToolESP",
     Callback = function(v) getgenv().EspSettings.Tool = v end
 })
-visSec1:Toggle({
+currentConfig:Register("ToolESP", toolEspToggle)
+
+local rainbowEspToggle = visSec1:Toggle({
     Title = "Rainbow ESP", Desc = "Cycle colors", Icon = "palette", Flag = "RainbowESP",
     Callback = function(v) getgenv().EspSettings.Rainbow = v end
 })
+currentConfig:Register("RainbowESP", rainbowEspToggle)
 
-visSec1:Colorpicker({
-    Title = "Enemy ESP Color",
-    Desc = "Color for enemies",
-    Icon = "droplet",
-    Flag = "EnemyESPColor",
-    Value = getgenv().EspSettings.EnemyColor or Color3.fromRGB(255, 50, 50),
-    Callback = function(color)
-        getgenv().EspSettings.EnemyColor = color
-    end
+local enemyColorpicker = visSec1:Colorpicker({
+    Title = "Enemy ESP Color", Desc = "Color for enemies", Icon = "droplet", Flag = "EnemyESPColor",
+    Value = getgenv().EspSettings.EnemyColor or Color3.fromRGB(255,50,50),
+    Callback = function(color) getgenv().EspSettings.EnemyColor = color end
 })
-visSec1:Colorpicker({
-    Title = "Teammate ESP Color",
-    Desc = "Color for teammates",
-    Icon = "droplet",
-    Flag = "TeammateESPColor",
-    Value = getgenv().EspSettings.TeammateColor or Color3.fromRGB(50, 150, 255),
-    Callback = function(color)
-        getgenv().EspSettings.TeammateColor = color
-    end
+currentConfig:Register("EnemyESPColor", enemyColorpicker)
+
+local teammateColorpicker = visSec1:Colorpicker({
+    Title = "Teammate ESP Color", Desc = "Color for teammates", Icon = "droplet", Flag = "TeammateESPColor",
+    Value = getgenv().EspSettings.TeammateColor or Color3.fromRGB(50,150,255),
+    Callback = function(color) getgenv().EspSettings.TeammateColor = color end
 })
+currentConfig:Register("TeammateESPColor", teammateColorpicker)
 
 local visSec4 = VisualsTab:Section({ Title = "ESP Appearance" })
-visSec4:Slider({
+local lineThicknessSlider = visSec4:Slider({
     Title = "Line Thickness", Desc = "1-5", Step = 0.1, Flag = "ESPLineThickness",
     Value = { Min = 1, Max = 5, Default = 2 },
     Callback = function(v) getgenv().EspSettings.LineThickness = v end
 })
+currentConfig:Register("ESPLineThickness", lineThicknessSlider)
 
 local visSec2 = VisualsTab:Section({ Title = "Other Visuals" })
-visSec2:Toggle({
+local chamsToggle = visSec2:Toggle({
     Title = "Player Wallhack (Chams)", Desc = "Outline through walls", Icon = "users", Flag = "Chams",
     Callback = function(state)
         if state then
             local function ApplyChams(player)
                 if player == LocalPlayer then return end
                 player.CharacterAdded:Connect(function(char)
-                    local h = Instance.new("Highlight")
-                    h.Name = "JB_ESP"
-                    h.FillColor = Color3.fromRGB(255,0,100)
-                    h.OutlineColor = Color3.fromRGB(255,255,255)
-                    h.FillTransparency = 0.5
-                    h.Parent = char
+                    local h = Instance.new("Highlight"); h.Name = "JB_ESP"
+                    h.FillColor = Color3.fromRGB(255,0,100); h.OutlineColor = Color3.fromRGB(255,255,255); h.FillTransparency = 0.5; h.Parent = char
                 end)
                 if player.Character then
-                    local h = Instance.new("Highlight")
-                    h.Name = "JB_ESP"
-                    h.FillColor = Color3.fromRGB(255,0,100)
-                    h.OutlineColor = Color3.fromRGB(255,255,255)
-                    h.FillTransparency = 0.5
-                    h.Parent = player.Character
+                    local h = Instance.new("Highlight"); h.Name = "JB_ESP"
+                    h.FillColor = Color3.fromRGB(255,0,100); h.OutlineColor = Color3.fromRGB(255,255,255); h.FillTransparency = 0.5; h.Parent = player.Character
                 end
             end
             for _, p in pairs(Players:GetPlayers()) do ApplyChams(p) end
@@ -1280,32 +1264,29 @@ visSec2:Toggle({
         else
             if Connections.Chams then Connections.Chams:Disconnect(); Connections.Chams = nil end
             for _, p in pairs(Players:GetPlayers()) do
-                if p.Character and p.Character:FindFirstChild("JB_ESP") then
-                    p.Character.JB_ESP:Destroy()
-                end
+                if p.Character and p.Character:FindFirstChild("JB_ESP") then p.Character.JB_ESP:Destroy() end
             end
         end
     end
 })
-visSec2:Toggle({
+currentConfig:Register("Chams", chamsToggle)
+
+local fullbrightToggle = visSec2:Toggle({
     Title = "Fullbright", Desc = "No shadows", Icon = "sun", Flag = "Fullbright",
     Callback = function(state)
         if state then
-            Lighting.Brightness = 4
-            Lighting.Ambient = Color3.fromRGB(255,255,255)
-            Lighting.GlobalShadows = false
+            Lighting.Brightness = 4; Lighting.Ambient = Color3.fromRGB(255,255,255); Lighting.GlobalShadows = false
         else
-            Lighting.Brightness = 2
-            Lighting.Ambient = Color3.fromRGB(130,130,130)
-            Lighting.GlobalShadows = true
+            Lighting.Brightness = 2; Lighting.Ambient = Color3.fromRGB(130,130,130); Lighting.GlobalShadows = true
         end
     end
 })
+currentConfig:Register("Fullbright", fullbrightToggle)
 
 -- //////////////////////// UTILITY ////////////////////////
 local UtilTab = Window:Tab({ Title = "Utility", Icon = "wrench" })
 local utilSec1 = UtilTab:Section({ Title = "Camera" })
-utilSec1:Toggle({
+local cameraFOVToggle = utilSec1:Toggle({
     Title = "Camera FOV Override", Desc = "Override FOV", Icon = "eye", Flag = "CameraFOVEnabled",
     Callback = function(state)
         getgenv().CameraFOVEnabled = state
@@ -1313,9 +1294,7 @@ utilSec1:Toggle({
             Camera.FieldOfView = getgenv().CameraFOVValue or 70
             if Connections.CameraFOV then Connections.CameraFOV:Disconnect() end
             Connections.CameraFOV = RunService.Heartbeat:Connect(function()
-                if getgenv().CameraFOVEnabled then
-                    Camera.FieldOfView = getgenv().CameraFOVValue or 70
-                end
+                if getgenv().CameraFOVEnabled then Camera.FieldOfView = getgenv().CameraFOVValue or 70 end
             end)
         else
             if Connections.CameraFOV then Connections.CameraFOV:Disconnect(); Connections.CameraFOV = nil end
@@ -1323,96 +1302,42 @@ utilSec1:Toggle({
         end
     end
 })
-utilSec1:Slider({
+currentConfig:Register("CameraFOVEnabled", cameraFOVToggle)
+
+local cameraFOVSlider = utilSec1:Slider({
     Title = "Camera FOV Value", Desc = "FOV in degrees (60-150)", Step = 1, Flag = "CameraFOVValue",
     Value = { Min = 60, Max = 150, Default = 70 },
-    Callback = function(value)
-        getgenv().CameraFOVValue = value
-        if getgenv().CameraFOVEnabled then Camera.FieldOfView = value end
-    end
+    Callback = function(value) getgenv().CameraFOVValue = value; if getgenv().CameraFOVEnabled then Camera.FieldOfView = value end end
 })
+currentConfig:Register("CameraFOVValue", cameraFOVSlider)
 
 local utilSec2 = UtilTab:Section({ Title = "Misc" })
-utilSec2:Button({
-    Title = "Teleport Upwards", Desc = "+25 studs",
-    Callback = function()
-        local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if r then r.CFrame = r.CFrame + Vector3.new(0,25,0) end
-    end
-})
-utilSec2:Button({
-    Title = "Teleport Downwards", Desc = "-15 studs",
-    Callback = function()
-        local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end
-    end
-})
-utilSec2:Button({
-    Title = "Infinite Camera Zoom", Desc = "Zoom distance 5000",
-    Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end
-})
-utilSec2:Button({
-    Title = "Respawn / Reset Character", Desc = "Kill character",
-    Callback = function()
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-    end
-})
+utilSec2:Button({ Title = "Teleport Upwards", Desc = "+25 studs", Callback = function() local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if r then r.CFrame = r.CFrame + Vector3.new(0,25,0) end end })
+utilSec2:Button({ Title = "Teleport Downwards", Desc = "-15 studs", Callback = function() local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end end })
+utilSec2:Button({ Title = "Infinite Camera Zoom", Desc = "Zoom distance 5000", Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end })
+utilSec2:Button({ Title = "Respawn / Reset Character", Desc = "Kill character", Callback = function() local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid"); if hum then hum.Health = 0 end end })
 
 -- //////////////////////// SETTINGS ////////////////////////
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 local setSec1 = SettingsTab:Section({ Title = "Theme" })
 local themeNames = {}
-for _, theme in ipairs(customThemes) do
-    table.insert(themeNames, theme.Name)
-end
+for _, theme in ipairs(customThemes) do table.insert(themeNames, theme.Name) end
 table.sort(themeNames)
-
 setSec1:Dropdown({
-    Title = "Select Theme",
-    Desc = "Auto-saved",
-    Icon = "palette",
-    Flag = "SavedTheme",
-    Values = themeNames,
-    Value = savedTheme or "Ocean",
+    Title = "Select Theme", Desc = "Auto-saved", Icon = "palette", Flag = "SavedTheme",
+    Values = themeNames, Value = savedTheme or "Ocean",
     Callback = function(theme)
         pcall(function() WindUI:SetTheme(theme) end)
         pcall(function()
-            currentConfig:Set("SavedTheme", theme)
-            currentConfig:Save()
+            if not isfolder("BR_Hub") then makefolder("BR_Hub") end
+            writefile("BR_Hub/theme.txt", theme)
         end)
     end
 })
 
 local setSec2 = SettingsTab:Section({ Title = "Config Management" })
-setSec2:Button({
-    Title = "Save Config",
-    Desc = "Save all settings",
-    Icon = "save",
-    Callback = function()
-        currentConfig:Save()
-    end
-})
-setSec2:Button({
-    Title = "Load Config",
-    Desc = "Load settings from disk",
-    Icon = "refresh-cw",
-    Callback = function()
-        currentConfig:Load()
-        local loadedTheme = pcall(function() return currentConfig:Get("SavedTheme") end)
-        if loadedTheme then
-            pcall(function() WindUI:SetTheme(loadedTheme) end)
-        end
-    end
-})
-setSec2:Button({
-    Title = "Delete Config",
-    Desc = "Delete config file",
-    Icon = "trash-2",
-    Callback = function()
-        currentConfig:Delete()
-    end
-})
+setSec2:Button({ Title = "Save Config", Desc = "Save all settings", Icon = "save", Callback = function() currentConfig:Save() end })
+setSec2:Button({ Title = "Load Config", Desc = "Load settings from disk", Icon = "refresh-cw", Callback = function() currentConfig:Load() end })
 
 -- ============================================================
 -- Respawn Handler
@@ -1427,10 +1352,6 @@ end)
 -- ============================================================
 pcall(function()
     currentConfig:Load()
-    local loadedTheme = pcall(function() return currentConfig:Get("SavedTheme") end)
-    if loadedTheme and loadedTheme ~= "" and loadedTheme ~= "Ocean" then
-        pcall(function() WindUI:SetTheme(loadedTheme) end)
-    end
 end)
 
-print("✅ BR Hub loaded successfully")
+print("BR Hub loaded successfully")
