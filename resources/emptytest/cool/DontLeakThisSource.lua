@@ -971,7 +971,7 @@ local spinAroundToggle = expSec3:Toggle({
     end
 })
 currentConfig:Register("SpinAround", spinAroundToggle)
-
+--[[ MIGHT READD LATER
 local behindOnlyToggle = expSec3:Toggle({
     Title = "Behind Only", Desc = "Teleport directly behind enemy", Icon = "arrow-left-right", Flag = "BehindOnly",
     Callback = function(state) getgenv().BehindOnly = state; if state then getgenv().RandomPosition = false; randomPositionToggle:SetValue(false) end end
@@ -983,7 +983,7 @@ local randomPositionToggle = expSec3:Toggle({
     Callback = function(state) getgenv().RandomPosition = state; if state then getgenv().BehindOnly = false; behindOnlyToggle:SetValue(false) end end
 })
 currentConfig:Register("RandomPosition", randomPositionToggle)
-
+]]
 -- Weapon & Build
 local expSec4 = ExploitsTab:Section({ Title = "Weapon & Build" })
 local noReloadToggle = expSec4:Toggle({
