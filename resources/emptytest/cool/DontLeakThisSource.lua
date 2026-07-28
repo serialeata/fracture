@@ -1,5 +1,5 @@
 -- ============================================================
--- BR Hub | JailBird Edition – v2.9.4 (Notification Spammer added)
+-- BR Hub | JailBird Edition – v2.9.6 (Notification delay + Weapon dropdown)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -45,7 +45,6 @@ getgenv().RandomHighPingEnabled = false
 getgenv().SpinAroundEnabled = false
 getgenv().JumpscareDelay = 0.1
 getgenv().TeleportKillEnabled = false
-getgenv().NotificationMessage = "BR HUB ON TOP"
 getgenv().NotificationSpam = false
 
 local Connections = {
@@ -86,7 +85,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v2.9.4",
+    Title = "v2.9.6",
     Icon = "github",
     Color = Color3.fromHex("#30ff6a"),
     Radius = 0,
@@ -386,9 +385,9 @@ end)
 
 -- TABS with icons
 local InfoTab = Window:Tab({ Title = "Info", Icon = "home" })
-InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v2.9.4", Icon = "lucide:info", Callback = function() end })
+InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v2.9.6", Icon = "lucide:info", Callback = function() end })
 InfoTab:Divider()
-InfoTab:Button({ Title = "Changelog", Desc = "✓ Notification Spammer with rainbow text", Icon = "lucide:file-text", Callback = function() end })
+InfoTab:Button({ Title = "Changelog", Desc = "✓ Notification delay (0.15s)\n✓ Weapon equip dropdown", Icon = "lucide:file-text", Callback = function() end })
 InfoTab:Divider()
 InfoTab:Button({ Title = "Script Credits", Desc = "Lead Developer: goth\nUI Framework: WindUI", Icon = "lucide:user", Callback = function() end })
 
@@ -635,7 +634,7 @@ local teleportKillToggle = expSecDrop:Toggle({
 })
 currentConfig:Register("TeleportKill", teleportKillToggle)
 
--- Weapon & Build
+-- Weapon & Build (added weapon dropdown)
 local expSec4 = ExploitsTab:Section({ Title = "Weapon & Build" })
 local noReloadToggle = expSec4:Toggle({ Title = "No Reload", Desc = "Spam reload remote", Icon = "lucide:refresh-cw", Flag = "InfiniteAmmo", Callback = function(state) if state then Connections.InfiniteAmmo = RunService.Heartbeat:Connect(function() local re = ReplicatedStorage:FindFirstChild("GameEvents"); if re then re = re:FindFirstChild("Reload") end; if re then re:FireServer("PPSH-41") end end) else if Connections.InfiniteAmmo then Connections.InfiniteAmmo:Disconnect(); Connections.InfiniteAmmo = nil end end end })
 currentConfig:Register("InfiniteAmmo", noReloadToggle)
@@ -667,6 +666,53 @@ end
 local autoBarricadeToggle = expSec4:Toggle({ Title = "Auto Barricade", Desc = "Auto-build prompts", Icon = "lucide:refresh-cw", Flag = "AutoBarricade", Callback = function(state) autoBarricadeEnabled = state; if state then startAutoBarricade() else if autoBarricadeConnection then autoBarricadeConnection:Disconnect(); autoBarricadeConnection = nil end end end })
 currentConfig:Register("AutoBarricade", autoBarricadeToggle)
 
+-- Build weapon list from ReplicatedStorage.Weapons
+local function getWeaponList()
+    local weaponsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Weapons")
+    if not weaponsFolder then return {} end
+    local list = {}
+    for _, obj in ipairs(weaponsFolder:GetChildren()) do
+        if obj:IsA("Tool") or obj:IsA("HopperBin") then -- likely Tools
+            table.insert(list, obj.Name)
+        end
+    end
+    table.sort(list)
+    return list
+end
+
+local weaponDropdownValues = {}
+for _, name in ipairs(getWeaponList()) do
+    table.insert(weaponDropdownValues, {
+        Title = name,
+        Desc = "Click to equip",
+        Icon = "lucide:hammer",
+        Callback = function()
+            local weaponsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Weapons")
+            if not weaponsFolder then return end
+            local tool = weaponsFolder:FindFirstChild(name)
+            if tool and (tool:IsA("Tool") or tool:IsA("HopperBin")) then
+                local clone = tool:Clone()
+                clone.Parent = LocalPlayer.Backpack
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChildOfClass("Humanoid") then
+                    char:FindFirstChildOfClass("Humanoid"):EquipTool(clone)
+                end
+            end
+        end
+    })
+end
+
+-- Dropdown to equip any weapon
+expSec4:Dropdown({
+    Title = "Equip Weapon",
+    Desc = "Select a weapon to forcefully equip",
+    Icon = "lucide:hammer",
+    Flag = "WeaponEquip",
+    Values = weaponDropdownValues,
+    -- no default selection, optional
+})
+
+-- Keep the MAC-10 button as a quick one
 expSec4:Button({
     Title = "Equip MAC-10",
     Desc = "Shows your pistol as rapid firing",
@@ -724,23 +770,12 @@ currentConfig:Register("AutoPing", autoPingToggle)
 local nearest3PingToggle = expSec5:Toggle({ Title = "Nearest 3 Ping", Desc = "Ping 3 nearest", Icon = "lucide:users", Flag = "Nearest3Ping", Callback = function(state) nearest3PingEnabled = state; if autoPingEnabled then updateAutoPing() end end })
 currentConfig:Register("Nearest3Ping", nearest3PingToggle)
 
--- Notification Spammer
+-- Notification Spammer with 0.15s delay
 local expSec6 = ExploitsTab:Section({ Title = "Notification Spam" })
-local notifMessageInput = expSec6:Input({
-    Title = "Message",
-    Desc = "Text to spam",
-    Icon = "lucide:message-square-warning",
-    Flag = "NotificationMessage",
-    Value = getgenv().NotificationMessage,
-    Callback = function(value)
-        getgenv().NotificationMessage = value
-    end
-})
-currentConfig:Register("NotificationMessage", notifMessageInput)
-
+local lastNotifTime = 0
 local notifSpamToggle = expSec6:Toggle({
     Title = "Spam Notification",
-    Desc = "Smooth rainbow spam of the message",
+    Desc = "Rainbow spam every 0.15s (BR HUB IS ON TOP LMAO | FUCK THE JAILBIRD STAFF (except papi kalas))",
     Icon = "lucide:refresh-cw",
     Flag = "NotificationSpam",
     Callback = function(state)
@@ -748,12 +783,16 @@ local notifSpamToggle = expSec6:Toggle({
         if state then
             if Connections.NotificationSpam then Connections.NotificationSpam:Disconnect() end
             Connections.NotificationSpam = RunService.Heartbeat:Connect(function()
-                local event = ReplicatedStorage:FindFirstChild("GameEvents")
-                if event then event = event:FindFirstChild("InGameNotification") end
-                if event then
-                    local hue = (tick() * 0.5) % 1
-                    local color = Color3.fromHSV(hue, 1, 1)
-                    fireevent(event.OnClientEvent, getgenv().NotificationMessage, color)
+                local now = os.clock()
+                if now - lastNotifTime >= 0.15 then
+                    lastNotifTime = now
+                    local event = ReplicatedStorage:FindFirstChild("GameEvents")
+                    if event then event = event:FindFirstChild("InGameNotification") end
+                    if event then
+                        local hue = (tick() * 0.5) % 1
+                        local color = Color3.fromHSV(hue, 1, 1)
+                        firesignal(event.OnClientEvent, "BR HUB IS ON TOP LMAO | FUCK THE JAILBIRD STAFF (except papi kalas)", color)
+                    end
                 end
             end)
         else
