@@ -1,5 +1,5 @@
 -- ============================================================
--- BR Hub | JailBird Edition – v2.9.3 (MAC-10 + Utility reorder)
+-- BR Hub | JailBird Edition – v2.9.4 (Notification Spammer added)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -45,12 +45,14 @@ getgenv().RandomHighPingEnabled = false
 getgenv().SpinAroundEnabled = false
 getgenv().JumpscareDelay = 0.1
 getgenv().TeleportKillEnabled = false
+getgenv().NotificationMessage = "BR HUB ON TOP"
+getgenv().NotificationSpam = false
 
 local Connections = {
     Spin = nil, Noclip = nil, Backstab = nil, InfiniteAmmo = nil,
     TPWalk = nil, InfJump = nil, Esp = nil, Chams = nil,
     CameraFOV = nil, PingChanger = nil, SpinAround = nil, LeanSpammer = nil,
-    AutoPing = nil, TeleportKill = nil
+    AutoPing = nil, TeleportKill = nil, NotificationSpam = nil
 }
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -84,7 +86,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v1.6.6",
+    Title = "v2.9.4",
     Icon = "github",
     Color = Color3.fromHex("#30ff6a"),
     Radius = 0,
@@ -384,9 +386,9 @@ end)
 
 -- TABS with icons
 local InfoTab = Window:Tab({ Title = "Info", Icon = "home" })
-InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v2.9.3", Icon = "lucide:info", Callback = function() end })
+InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v2.9.4", Icon = "lucide:info", Callback = function() end })
 InfoTab:Divider()
-InfoTab:Button({ Title = "Changelog", Desc = "✓ Icons added\n✓ Teleport Kill multi-target\n✓ Tracers from bottom\n✓ No cooldown auto kill\n✓ All previous features", Icon = "lucide:file-text", Callback = function() end })
+InfoTab:Button({ Title = "Changelog", Desc = "✓ Notification Spammer with rainbow text", Icon = "lucide:file-text", Callback = function() end })
 InfoTab:Divider()
 InfoTab:Button({ Title = "Script Credits", Desc = "Lead Developer: goth\nUI Framework: WindUI", Icon = "lucide:user", Callback = function() end })
 
@@ -665,7 +667,6 @@ end
 local autoBarricadeToggle = expSec4:Toggle({ Title = "Auto Barricade", Desc = "Auto-build prompts", Icon = "lucide:refresh-cw", Flag = "AutoBarricade", Callback = function(state) autoBarricadeEnabled = state; if state then startAutoBarricade() else if autoBarricadeConnection then autoBarricadeConnection:Disconnect(); autoBarricadeConnection = nil end end end })
 currentConfig:Register("AutoBarricade", autoBarricadeToggle)
 
--- Equip MAC-10
 expSec4:Button({
     Title = "Equip MAC-10",
     Desc = "Shows your pistol as rapid firing",
@@ -722,6 +723,48 @@ local autoPingToggle = expSec5:Toggle({ Title = "Auto Ping", Desc = "Ping under 
 currentConfig:Register("AutoPing", autoPingToggle)
 local nearest3PingToggle = expSec5:Toggle({ Title = "Nearest 3 Ping", Desc = "Ping 3 nearest", Icon = "lucide:users", Flag = "Nearest3Ping", Callback = function(state) nearest3PingEnabled = state; if autoPingEnabled then updateAutoPing() end end })
 currentConfig:Register("Nearest3Ping", nearest3PingToggle)
+
+-- Notification Spammer
+local expSec6 = ExploitsTab:Section({ Title = "Notification Spam" })
+local notifMessageInput = expSec6:Input({
+    Title = "Message",
+    Desc = "Text to spam",
+    Icon = "lucide:message-square-warning",
+    Flag = "NotificationMessage",
+    Value = getgenv().NotificationMessage,
+    Callback = function(value)
+        getgenv().NotificationMessage = value
+    end
+})
+currentConfig:Register("NotificationMessage", notifMessageInput)
+
+local notifSpamToggle = expSec6:Toggle({
+    Title = "Spam Notification",
+    Desc = "Smooth rainbow spam of the message",
+    Icon = "lucide:refresh-cw",
+    Flag = "NotificationSpam",
+    Callback = function(state)
+        getgenv().NotificationSpam = state
+        if state then
+            if Connections.NotificationSpam then Connections.NotificationSpam:Disconnect() end
+            Connections.NotificationSpam = RunService.Heartbeat:Connect(function()
+                local event = ReplicatedStorage:FindFirstChild("GameEvents")
+                if event then event = event:FindFirstChild("InGameNotification") end
+                if event then
+                    local hue = (tick() * 0.5) % 1
+                    local color = Color3.fromHSV(hue, 1, 1)
+                    fireevent(event.OnClientEvent, getgenv().NotificationMessage, color)
+                end
+            end)
+        else
+            if Connections.NotificationSpam then
+                Connections.NotificationSpam:Disconnect()
+                Connections.NotificationSpam = nil
+            end
+        end
+    end
+})
+currentConfig:Register("NotificationSpam", notifSpamToggle)
 
 -- Jumpscare
 local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
@@ -793,8 +836,6 @@ utilSec2:Button({ Title = "Teleport Upwards", Desc = "+25 studs", Icon = "lucide
 utilSec2:Button({ Title = "Teleport Downwards", Desc = "-15 studs", Icon = "lucide:chevron-down", Callback = function() local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end end })
 utilSec2:Button({ Title = "Infinite Camera Zoom", Desc = "Zoom distance 5000", Icon = "lucide:search", Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end })
 utilSec2:Button({ Title = "Respawn / Reset Character", Desc = "Kill character", Icon = "lucide:skull", Callback = function() local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid"); if hum then hum.Health = 0 end end })
-
--- Moved Utility Buttons (from old Exploits section)
 utilSec2:Button({ Title = "Anti Kick", Desc = "Prevent kicks", Icon = "lucide:ban", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end })
 utilSec2:Button({ Title = "Gun Spoofer", Desc = "Equip any tool", Icon = "lucide:hammer", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end })
 
