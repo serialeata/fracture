@@ -1,5 +1,5 @@
 -- ============================================================
--- BR Hub | JailBird Edition – v2.9.3 (Tag added)
+-- BR Hub | JailBird Edition – v2.9.3 (MAC-10 + Utility reorder)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -84,10 +84,10 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v2.9.3",
+    Title = "v1.6.6",
     Icon = "github",
     Color = Color3.fromHex("#30ff6a"),
-    Radius = 3,
+    Radius = 0,
 })
 
 local ConfigManager = Window.ConfigManager
@@ -665,6 +665,24 @@ end
 local autoBarricadeToggle = expSec4:Toggle({ Title = "Auto Barricade", Desc = "Auto-build prompts", Icon = "lucide:refresh-cw", Flag = "AutoBarricade", Callback = function(state) autoBarricadeEnabled = state; if state then startAutoBarricade() else if autoBarricadeConnection then autoBarricadeConnection:Disconnect(); autoBarricadeConnection = nil end end end })
 currentConfig:Register("AutoBarricade", autoBarricadeToggle)
 
+-- Equip MAC-10
+expSec4:Button({
+    Title = "Equip MAC-10",
+    Desc = "Shows your pistol as rapid firing",
+    Icon = "lucide:zap",
+    Callback = function()
+        local mac10 = game:GetService("ReplicatedStorage").Weapons.MAC10
+        if mac10 then
+            local clone = mac10:Clone()
+            clone.Parent = LocalPlayer.Backpack
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChildOfClass("Humanoid") then
+                char:FindFirstChildOfClass("Humanoid"):EquipTool(clone)
+            end
+        end
+    end
+})
+
 -- Ping Spam
 local expSec5 = ExploitsTab:Section({ Title = "Ping Spam" })
 local autoPingEnabled = false; local nearest3PingEnabled = false; local lastPingTime = 0
@@ -704,11 +722,6 @@ local autoPingToggle = expSec5:Toggle({ Title = "Auto Ping", Desc = "Ping under 
 currentConfig:Register("AutoPing", autoPingToggle)
 local nearest3PingToggle = expSec5:Toggle({ Title = "Nearest 3 Ping", Desc = "Ping 3 nearest", Icon = "lucide:users", Flag = "Nearest3Ping", Callback = function(state) nearest3PingEnabled = state; if autoPingEnabled then updateAutoPing() end end })
 currentConfig:Register("Nearest3Ping", nearest3PingToggle)
-
--- Utility Buttons
-local expSec6 = ExploitsTab:Section({ Title = "Utility Buttons" })
-expSec6:Button({ Title = "Anti Kick", Desc = "Prevent kicks", Icon = "lucide:ban", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end })
-expSec6:Button({ Title = "Gun Spoofer", Desc = "Equip any tool", Icon = "lucide:hammer", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end })
 
 -- Jumpscare
 local expSec7 = ExploitsTab:Section({ Title = "Jumpscare" })
@@ -780,6 +793,10 @@ utilSec2:Button({ Title = "Teleport Upwards", Desc = "+25 studs", Icon = "lucide
 utilSec2:Button({ Title = "Teleport Downwards", Desc = "-15 studs", Icon = "lucide:chevron-down", Callback = function() local r = LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if r then r.CFrame = r.CFrame + Vector3.new(0,-15,0) end end })
 utilSec2:Button({ Title = "Infinite Camera Zoom", Desc = "Zoom distance 5000", Icon = "lucide:search", Callback = function() LocalPlayer.CameraMaxZoomDistance = 5000 end })
 utilSec2:Button({ Title = "Respawn / Reset Character", Desc = "Kill character", Icon = "lucide:skull", Callback = function() local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid"); if hum then hum.Health = 0 end end })
+
+-- Moved Utility Buttons (from old Exploits section)
+utilSec2:Button({ Title = "Anti Kick", Desc = "Prevent kicks", Icon = "lucide:ban", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-anti-kick-211995"))() end })
+utilSec2:Button({ Title = "Gun Spoofer", Desc = "Equip any tool", Icon = "lucide:hammer", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Game-tool-equipper-12139"))() end })
 
 -- Settings Tab
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
