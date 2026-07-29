@@ -1,5 +1,5 @@
 -- ============================================================
--- BR Hub | JailBird Edition – v2.9.6 (Notification delay + Weapon dropdown)
+-- BR Hub | JailBird Edition – v3.0.1 (Hitbox always extended, changelog)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -85,7 +85,7 @@ Window:EditOpenButton({
 })
 
 Window:Tag({
-    Title = "v2.9.6",
+    Title = "v3.0.1",
     Icon = "github",
     Color = Color3.fromHex("#30ff6a"),
     Radius = 0,
@@ -105,15 +105,30 @@ end
 local savedTheme = ReadThemeFile()
 if savedTheme then pcall(function() WindUI:SetTheme(savedTheme) end) else WindUI:SetTheme("Ocean") end
 
-local function IsVisible(targetPart)
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
-    rayParams.IgnoreWater = true
-    local origin = Camera.CFrame.Position
-    local dir = targetPart.Position - origin
-    local result = workspace:Raycast(origin, dir, rayParams)
-    return result == nil
+local function isPartVisible(origin, part, ignoreList)
+    local cf = part.CFrame
+    local size = part.Size * 0.5
+    local points = {
+        cf * Vector3.new( size.X,  size.Y,  size.Z),
+        cf * Vector3.new( size.X,  size.Y, -size.Z),
+        cf * Vector3.new( size.X, -size.Y,  size.Z),
+        cf * Vector3.new( size.X, -size.Y, -size.Z),
+        cf * Vector3.new(-size.X,  size.Y,  size.Z),
+        cf * Vector3.new(-size.X,  size.Y, -size.Z),
+        cf * Vector3.new(-size.X, -size.Y,  size.Z),
+        cf * Vector3.new(-size.X, -size.Y, -size.Z),
+        cf.Position
+    }
+    for _, point in ipairs(points) do
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = ignoreList
+        local result = workspace:Raycast(origin, point - origin, params)
+        if result == nil then
+            return true
+        end
+    end
+    return false
 end
 
 local function GetClosestPlayer()
@@ -121,17 +136,21 @@ local function GetClosestPlayer()
     local shortest = math.huge
     local settings = getgenv().AimbotSettings
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
             local aimPart = plr.Character:FindFirstChild(settings.TargetPart)
             if not hrp or not aimPart then continue end
             if settings.TeamCheck and LocalPlayer.Team and plr.Team == LocalPlayer.Team then continue end
-            if settings.VisibleOnly and not IsVisible(aimPart) then continue end
+            if settings.VisibleOnly and not isPartVisible(Camera.CFrame.Position, aimPart, {LocalPlayer.Character, plr.Character}) then continue end
             local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
             if onScreen then
                 local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
-                if dist <= settings.FOV and dist < shortest then target = plr; shortest = dist end
+                if dist <= settings.FOV and dist < shortest then
+                    target = plr
+                    shortest = dist
+                end
             end
         end
     end
@@ -173,17 +192,18 @@ RunService.Heartbeat:Connect(function()
     local aimSettings = getgenv().AimbotSettings
     local hitSettings = getgenv().HitboxSettings
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             local head = plr.Character:FindFirstChild("Head")
             local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
             if head and hrp then
-                local inFov = false
-                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-                if onScreen then local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude; inFov = dist <= aimSettings.FOV end
                 local wallOk = true
-                if hitSettings.WallCheck then wallOk = IsVisible(hrp) end
-                if hitSettings.Enabled and inFov and wallOk then
+                if hitSettings.WallCheck then
+                    wallOk = isPartVisible(Camera.CFrame.Position, hrp, {LocalPlayer.Character, plr.Character})
+                end
+
+                if hitSettings.Enabled and wallOk then
                     local sz = Vector3.new(hitSettings.Size, hitSettings.Size, hitSettings.Size)
                     head.Size = sz; head.CanCollide = false
                     hrp.Size = sz; hrp.CanCollide = false
@@ -194,6 +214,7 @@ RunService.Heartbeat:Connect(function()
             end
         end
     end
+
     if aimSettings.Enabled then
         local target = GetClosestPlayer()
         if target and target.Character and target.Character:FindFirstChild(aimSettings.TargetPart) then
@@ -201,6 +222,7 @@ RunService.Heartbeat:Connect(function()
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), 1 / aimSettings.Smoothness)
         end
     end
+
     if aimSettings.RainbowFOV and fovFrame.Visible then
         local hue = (tick() * 0.5) % 1
         fovStroke.Color = Color3.fromHSV(hue, 1, 1)
@@ -385,9 +407,9 @@ end)
 
 -- TABS with icons
 local InfoTab = Window:Tab({ Title = "Info", Icon = "home" })
-InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v2.9.6", Icon = "lucide:info", Callback = function() end })
+InfoTab:Button({ Title = "Welcome to BR Hub", Desc = "Current Version: v3.0.1", Icon = "lucide:info", Callback = function() end })
 InfoTab:Divider()
-InfoTab:Button({ Title = "Changelog", Desc = "✓ Notification delay (0.15s)\n✓ Weapon equip dropdown", Icon = "lucide:file-text", Callback = function() end })
+InfoTab:Button({ Title = "Changelog", Desc = "✓ Aimbot multi-point visibility check\n✓ Chams (through walls, team colors)\n✓ Notification spammer\n✓ Weapon equip dropdown\n✓ MAC-10 quick equip", Icon = "lucide:file-text", Callback = function() end })
 InfoTab:Divider()
 InfoTab:Button({ Title = "Script Credits", Desc = "Lead Developer: goth\nUI Framework: WindUI", Icon = "lucide:user", Callback = function() end })
 
@@ -412,7 +434,7 @@ local aimbotToggle = aimSec1:Toggle({ Title = "Aimbot (Camera Lock)", Desc = "Lo
 currentConfig:Register("Aimbot", aimbotToggle)
 local teamCheckToggle = aimSec1:Toggle({ Title = "Team Check", Desc = "Ignore teammates", Icon = "lucide:users", Flag = "TeamCheck", Callback = function(v) getgenv().AimbotSettings.TeamCheck = v end })
 currentConfig:Register("TeamCheck", teamCheckToggle)
-local visibleOnlyToggle = aimSec1:Toggle({ Title = "Visible Only", Desc = "Only lock if visible", Icon = "lucide:eye", Flag = "VisibleOnly", Callback = function(v) getgenv().AimbotSettings.VisibleOnly = v end })
+local visibleOnlyToggle = aimSec1:Toggle({ Title = "Visible Only", Desc = "Only lock if visible (multi-point)", Icon = "lucide:eye", Flag = "VisibleOnly", Callback = function(v) getgenv().AimbotSettings.VisibleOnly = v end })
 currentConfig:Register("VisibleOnly", visibleOnlyToggle)
 local smoothnessSlider = aimSec1:Slider({ Title = "Smoothness", Desc = "Lower = faster (1=instant)", Step = 1, Flag = "Smoothness", Value = { Min = 1, Max = 10, Default = 1 }, Icon = "lucide:sliders-horizontal", Callback = function(v) getgenv().AimbotSettings.Smoothness = v end })
 currentConfig:Register("Smoothness", smoothnessSlider)
@@ -432,7 +454,7 @@ local fovColorpicker = aimSec2:Colorpicker({ Title = "FOV Color", Desc = "Pick a
 currentConfig:Register("FOVColor", fovColorpicker)
 
 local aimSec3 = AimTab:Section({ Title = "Hitbox Expander" })
-local hitboxToggle = aimSec3:Toggle({ Title = "Head Hitbox Size Changer", Desc = "Enlarge head hitbox", Icon = "lucide:plus", Flag = "HitboxEnabled", Callback = function(v) getgenv().HitboxSettings.Enabled = v end })
+local hitboxToggle = aimSec3:Toggle({ Title = "Head Hitbox Size Changer", Desc = "Enlarge head hitbox (always active)", Icon = "lucide:plus", Flag = "HitboxEnabled", Callback = function(v) getgenv().HitboxSettings.Enabled = v end })
 currentConfig:Register("HitboxEnabled", hitboxToggle)
 local hitboxSizeSlider = aimSec3:Slider({ Title = "Hitbox Size", Desc = "Size (2-15)", Step = 1, Flag = "HitboxSize", Value = { Min = 2, Max = 15, Default = 6 }, Icon = "lucide:sliders-horizontal", Callback = function(v) getgenv().HitboxSettings.Size = v end })
 currentConfig:Register("HitboxSize", hitboxSizeSlider)
@@ -556,7 +578,7 @@ currentConfig:Register("KillAll", autoTeleportToggle)
 local spinAroundToggle = expSec3:Toggle({ Title = "Spin Around Target", Desc = "Orbit enemy (needs Auto Teleport)", Icon = "lucide:refresh-cw", Flag = "SpinAround", Callback = function(state) getgenv().SpinAroundEnabled = state; if state then if Connections.SpinAround then Connections.SpinAround:Disconnect() end; Connections.SpinAround = RunService.Heartbeat:Connect(function() if not getgenv().SpinAroundEnabled or not getgenv().BackstabActive then return end; local localChar = LocalPlayer.Character; if not localChar then return end; local lRoot = localChar:FindFirstChild("HumanoidRootPart"); if not lRoot then return end; local targetChar = nil; local targetHRP = nil; local shortestDist = math.huge; for _, plr in ipairs(Players:GetPlayers()) do if plr ~= LocalPlayer and plr.Character then if LocalPlayer.Team and plr.Team == LocalPlayer.Team then continue end; local eHum = plr.Character:FindFirstChildOfClass("Humanoid"); local eHRP = plr.Character:FindFirstChild("HumanoidRootPart"); if eHum and eHRP and eHum.Health > 0 then local dist = (eHRP.Position - lRoot.Position).Magnitude; if dist < shortestDist then shortestDist = dist; targetChar = plr.Character; targetHRP = eHRP end end end end; if targetHRP then local angle = (tick() * 10) % 1 * math.pi * 2; local pos = targetHRP.Position + Vector3.new(math.cos(angle)*5, 3.5, math.sin(angle)*5); lRoot.CFrame = CFrame.new(pos, targetHRP.Position) end end) else if Connections.SpinAround then Connections.SpinAround:Disconnect(); Connections.SpinAround = nil end end end })
 currentConfig:Register("SpinAround", spinAroundToggle)
 
--- Experimental: Teleport Kill with multi-target and 0.01s delay
+-- Experimental: Teleport Kill
 local expSecDrop = ExploitsTab:Section({ Title = "Experimental" })
 local teleportKillConnection = nil; local teleportKillRunning = false
 local function TeleportKillLoop()
@@ -634,7 +656,7 @@ local teleportKillToggle = expSecDrop:Toggle({
 })
 currentConfig:Register("TeleportKill", teleportKillToggle)
 
--- Weapon & Build (added weapon dropdown)
+-- Weapon & Build
 local expSec4 = ExploitsTab:Section({ Title = "Weapon & Build" })
 local noReloadToggle = expSec4:Toggle({ Title = "No Reload", Desc = "Spam reload remote", Icon = "lucide:refresh-cw", Flag = "InfiniteAmmo", Callback = function(state) if state then Connections.InfiniteAmmo = RunService.Heartbeat:Connect(function() local re = ReplicatedStorage:FindFirstChild("GameEvents"); if re then re = re:FindFirstChild("Reload") end; if re then re:FireServer("PPSH-41") end end) else if Connections.InfiniteAmmo then Connections.InfiniteAmmo:Disconnect(); Connections.InfiniteAmmo = nil end end end })
 currentConfig:Register("InfiniteAmmo", noReloadToggle)
@@ -666,13 +688,12 @@ end
 local autoBarricadeToggle = expSec4:Toggle({ Title = "Auto Barricade", Desc = "Auto-build prompts", Icon = "lucide:refresh-cw", Flag = "AutoBarricade", Callback = function(state) autoBarricadeEnabled = state; if state then startAutoBarricade() else if autoBarricadeConnection then autoBarricadeConnection:Disconnect(); autoBarricadeConnection = nil end end end })
 currentConfig:Register("AutoBarricade", autoBarricadeToggle)
 
--- Build weapon list from ReplicatedStorage.Weapons
 local function getWeaponList()
     local weaponsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Weapons")
     if not weaponsFolder then return {} end
     local list = {}
     for _, obj in ipairs(weaponsFolder:GetChildren()) do
-        if obj:IsA("Tool") or obj:IsA("HopperBin") then -- likely Tools
+        if obj:IsA("Tool") or obj:IsA("HopperBin") then
             table.insert(list, obj.Name)
         end
     end
@@ -702,17 +723,14 @@ for _, name in ipairs(getWeaponList()) do
     })
 end
 
--- Dropdown to equip any weapon
 expSec4:Dropdown({
     Title = "Equip Weapon",
     Desc = "Select a weapon to forcefully equip",
     Icon = "lucide:hammer",
     Flag = "WeaponEquip",
     Values = weaponDropdownValues,
-    -- no default selection, optional
 })
 
--- Keep the MAC-10 button as a quick one
 expSec4:Button({
     Title = "Equip MAC-10",
     Desc = "Shows your pistol as rapid firing",
@@ -858,8 +876,62 @@ local visSec4 = VisualsTab:Section({ Title = "ESP Appearance" })
 local lineThicknessSlider = visSec4:Slider({ Title = "Line Thickness", Desc = "1-5", Step = 0.1, Flag = "ESPLineThickness", Value = { Min = 1, Max = 5, Default = 2 }, Icon = "lucide:sliders-horizontal", Callback = function(v) getgenv().EspSettings.LineThickness = v end })
 currentConfig:Register("ESPLineThickness", lineThicknessSlider)
 local visSec2 = VisualsTab:Section({ Title = "Other Visuals" })
-local chamsToggle = visSec2:Toggle({ Title = "Player Wallhack (Chams)", Desc = "Outline through walls", Icon = "lucide:users", Flag = "Chams", Callback = function(state) if state then local function ApplyChams(player) if player == LocalPlayer then return end; player.CharacterAdded:Connect(function(char) local h = Instance.new("Highlight"); h.Name = "JB_ESP"; h.FillColor = Color3.fromRGB(255,0,100); h.OutlineColor = Color3.fromRGB(255,255,255); h.FillTransparency = 0.5; h.Parent = char end); if player.Character then local h = Instance.new("Highlight"); h.Name = "JB_ESP"; h.FillColor = Color3.fromRGB(255,0,100); h.OutlineColor = Color3.fromRGB(255,255,255); h.FillTransparency = 0.5; h.Parent = player.Character end end; for _, p in pairs(Players:GetPlayers()) do ApplyChams(p) end; Connections.Chams = Players.PlayerAdded:Connect(ApplyChams) else if Connections.Chams then Connections.Chams:Disconnect(); Connections.Chams = nil end; for _, p in pairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("JB_ESP") then p.Character.JB_ESP:Destroy() end end end end })
+
+-- Chams (fixed: AlwaysOnTop, team colors, works R6/R15)
+local chamsToggle = visSec2:Toggle({
+    Title = "Player Wallhack (Chams)",
+    Desc = "Enemies red, teammates blue – visible through walls",
+    Icon = "lucide:users",
+    Flag = "Chams",
+    Callback = function(state)
+        if state then
+            local function applyChams(player)
+                if player == LocalPlayer then return end
+                local function addHighlight(char)
+                    local old = char:FindFirstChild("JB_ESP")
+                    if old then old:Destroy() end
+
+                    local isEnemy = true
+                    if LocalPlayer.Team and player.Team and player.Team == LocalPlayer.Team then
+                        isEnemy = false
+                    end
+                    local fillColor = isEnemy and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(50, 150, 255)
+                    local outlineColor = isEnemy and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 180, 255)
+
+                    local h = Instance.new("Highlight")
+                    h.Name = "JB_ESP"
+                    h.FillColor = fillColor
+                    h.OutlineColor = outlineColor
+                    h.FillTransparency = 0.4
+                    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop  -- this ensures through walls
+                    h.Parent = char
+                end
+
+                if player.Character then
+                    addHighlight(player.Character)
+                end
+                player.CharacterAdded:Connect(addHighlight)
+            end
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                applyChams(p)
+            end
+            Connections.Chams = Players.PlayerAdded:Connect(applyChams)
+        else
+            if Connections.Chams then
+                Connections.Chams:Disconnect()
+                Connections.Chams = nil
+            end
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character and p.Character:FindFirstChild("JB_ESP") then
+                    p.Character.JB_ESP:Destroy()
+                end
+            end
+        end
+    end
+})
 currentConfig:Register("Chams", chamsToggle)
+
 local fullbrightToggle = visSec2:Toggle({ Title = "Fullbright", Desc = "No shadows", Icon = "lucide:star", Flag = "Fullbright", Callback = function(state) if state then Lighting.Brightness = 4; Lighting.Ambient = Color3.fromRGB(255,255,255); Lighting.GlobalShadows = false else Lighting.Brightness = 2; Lighting.Ambient = Color3.fromRGB(130,130,130); Lighting.GlobalShadows = true end end })
 currentConfig:Register("Fullbright", fullbrightToggle)
 
